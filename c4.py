@@ -59,15 +59,15 @@ def main():
         "-e",
         "--episodes",
         type=int,
-        default=1000,
-        help="Number of episodes to run (default: 1000)",
+        default=100,
+        help="Number of episodes to run (default: 100)",
     )
     parser.add_argument(
         "-i",
         "--iterations",
         type=int,
-        default=1000,
-        help="Number of iterations to run (default: 1000)",
+        default=100,
+        help="Number of iterations to run (default: 100)",
     )
     parser.add_argument(
         "-f",
