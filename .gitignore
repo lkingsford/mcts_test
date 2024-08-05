@@ -1,3 +1,4 @@
 env
 *.keras
 *.pyc
+*.sqlite*
