@@ -42,6 +42,7 @@ def train(filename, tree: mcts.tree.Tree, episodes: int):
             LOGGER.debug("Playing Turn")
             action = tree.act(game.state)
             game.act(action)
+
         LOGGER.debug("Winner: %d", game.state.winner)
 
 

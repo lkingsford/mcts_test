@@ -30,7 +30,7 @@ class Tree:
         constant: float = 1.4142135623730951,
         commit: bool = True,
     ):
-        self.connection = sqlite3.connect(filename)
+        self.connection = sqlite3.connect(filename, autocommit=False)
         self.cursor = self.connection.cursor()
 
         self.commit = commit
@@ -56,6 +56,7 @@ class Tree:
             self.game_state_class.create_state_table(self.cursor)
 
             self.root = self.build_state_node(initial_state, 255, None)
+            self.expansion(self.root)
         else:
             root = Node.load(self.cursor, initial_state.hash())
             assert root
@@ -69,6 +70,7 @@ class Tree:
         for iteration in range(self.iterations):
             LOGGER.debug("---------------------")
             LOGGER.debug("Iteration %d", iteration)
+            LOGGER.debug("## Selection")
             node = self.selection(current_action_node)
             if node and node.leaf:
                 self.expansion(node)
@@ -78,6 +80,7 @@ class Tree:
 
         # This could be taken out if multithreaded
         if self.commit:
+            LOGGER.debug("Committing")
             self.connection.commit()
 
         children = current_action_node.load_children(self.cursor)
@@ -97,26 +100,60 @@ class Tree:
         best_action = max(potential_actions, key=lambda n: n.ucb(self.constant))
         return best_action.action
 
+    # def selection(self, node: "Node") -> Optional["Node"]:
+    #     LOGGER.debug("## Selection")
+    #     while not node.leaf:
+    #         LOGGER.debug("Node %s", node.hash)
+    #         nodes = node.load_children(self.cursor)
+    #         if len(nodes) == 0:
+    #             # Not sure if this is the correct behaviour
+    #             LOGGER.debug("No children found in selection")
+    #             return None
+    #         node = max(nodes, key=lambda n: n.ucb(self.constant))
+    #     return node
+
     def selection(self, node: "Node") -> Optional["Node"]:
-        LOGGER.debug("## Selection")
-        while not node.leaf:
-            nodes = node.load_children(self.cursor)
-            if len(nodes) == 0:
-                # Not sure if this is the correct behaviour
-                LOGGER.debug("No children found in selection")
-                return None
-            node = max(nodes, key=lambda n: n.ucb(self.constant))
-        return node
+        checking_node = node
+        LOGGER.debug("Selection checking %s", node.hash)
+
+        # Reorder nodes so the order isn't always the same when there's a tie
+        # ... doesn't work maybe?
+        nodes = sorted(
+            checking_node.load_children(self.cursor), key=lambda _: random.random()
+        )
+        node_order = sorted(nodes, key=lambda n: n.ucb(self.constant), reverse=True)
+        LOGGER.debug(
+            "Node order: %s",
+            ",".join([f"{n.hash}: {n.ucb(self.constant)}" for n in node_order]),
+        )
+
+        for node_to_check in node_order:
+            LOGGER.debug(
+                "   Checking node %s (UCB: %s} (from %s)",
+                node_to_check.hash,
+                node.ucb(self.constant),
+                node.hash,
+            )
+            if node_to_check.leaf:
+                return node_to_check
+            else:
+                recurse_result = self.selection(node_to_check)
+                if recurse_result:
+                    return recurse_result
+
+        return None
 
     def expansion(self, node: "Node"):
         # Create nodes for all legal actions
         LOGGER.debug("## Expansion")
+        LOGGER.debug("Expanding node %s", node.hash)
         state = self.game_state_class.load_state(self.cursor, node.state_id)
         for action in state.permitted_actions:
             game = self.game_class.from_state(state)
             new_state = game.act(action)
 
             self.build_state_node(new_state, action, node)
+            LOGGER.debug("Building node %s", new_state.hash())
 
         node.leaf = False
         node.save(self.cursor)
@@ -125,13 +162,28 @@ class Tree:
         LOGGER.debug("## Play Out")
         state = self.game_state_class.load_state(self.cursor, node.state_id)
         game = self.game_class.from_state(state)
-        parent_node = node
         while state.winner == -1:
             # TODO: Generalize Action Selection so can make not just random
             action = random.choice(state.permitted_actions)
             LOGGER.debug("Action: %d", action)
             state = game.act(action)
-            parent_node = self.build_state_node(state, action, parent_node)
+
+        if node.parent_hash:
+            # TODO: This shouldn't be done here. Constructor maybe?
+            parent_node = Node.load(self.cursor, node.parent_hash)
+            assert parent_node
+            node.parent_node_visit_count = parent_node.visit_count
+
+        reward = [0] * self.player_count
+        if state.winner == -2:
+            # Draw
+            reward = [self.draw_estimate] * self.player_count
+        else:
+            reward = [self.loss_estimate] * self.player_count
+            reward[state.winner] = self.win_estimate
+
+        node.leaf = False
+        node.back_propogate(reward, self.cursor)
 
     def build_state_node(
         self,
@@ -154,22 +206,6 @@ class Tree:
             parent_node_visit_count=0,
             leaf=True,
         )
-
-        if parent_node:
-            # TODO: This shouldn't be done here. Constructor maybe?
-            new_node.parent_node_visit_count = parent_node.visit_count
-
-        if new_state.winner != -1:
-            reward = [0] * self.player_count
-            if new_state.winner == -2:
-                # Draw
-                reward = [self.draw_estimate] * self.player_count
-            else:
-                reward = [self.loss_estimate] * self.player_count
-                reward[new_state.winner] = self.win_estimate
-
-            new_node.leaf = False
-            new_node.back_propogate(reward, self.cursor)
 
         new_node.save(self.cursor)
         return new_node
@@ -256,6 +292,7 @@ class Node:
         self.visit_count += 1
         if self.parent_hash:
             parent = Node.load(cursor, self.parent_hash)
+            assert parent
             parent.back_propogate(value_d, cursor)
 
             # last_action_node = self.last_action_node(cursor, self.player_id)
