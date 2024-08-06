@@ -34,6 +34,7 @@ def human_play(game, tree):
         state = next_state
         game.debug_print()
         done = next_state.winner != -1
+    tree.to_disk()
 
 
 def train(filename, tree: mcts.tree.Tree, episodes: int, use_speedo: bool):
@@ -51,6 +52,8 @@ def train(filename, tree: mcts.tree.Tree, episodes: int, use_speedo: bool):
                 game.act(action)
 
             LOGGER.info("Winner: %d", game.state.winner)
+            if episode_no % 10 == 0:
+                tree.to_disk()
     finally:
         if use_speedo:
             stop_event.set()
@@ -109,7 +112,7 @@ def main():
     parser.add_argument(
         "-f",
         "--filename",
-        default="saved_model.sqlite3",
+        default="saved_model.pkl",
         help="Filename to use for saving/loading model (default: saved_model.pkl)",
     )
     parser.add_argument(

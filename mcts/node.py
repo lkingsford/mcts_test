@@ -1,16 +1,21 @@
 import logging
 from typing import Optional
 import math
+import pickle
 from game.game_state import GameState
 
 LOGGER = logging.getLogger(__name__)
 
 
 class NodeStore:
-    def __init__(self):
-        self._store: dict[str, "Node"] = dict()
+    def __init__(
+        self,
+        store: Optional[dict[str, "Node"]] = None,
+        children_store: Optional[dict[str, set[str]]] = None,
+    ):
+        self._store: dict[str, "Node"] = store or dict()
         # Not ideal - but this is a first take
-        self._children_store: dict[str, set[str]] = dict()
+        self._children_store: dict[str, set[str]] = children_store or dict()
 
     def load(self, hash: str) -> Optional["Node"]:
         return self._store[hash]
@@ -27,6 +32,18 @@ class NodeStore:
 
     def count(self) -> int:
         return len(self._store)
+
+    def to_disk(self, filename: str):
+        LOGGER.info("Saving %d nodes to %s", len(self._store), filename)
+        pickle.dump([self._store, self._children_store], open(filename, "wb"))
+        LOGGER.info("Saved")
+
+    @classmethod
+    def from_disk(cls, filename: str):
+        LOGGER.info("Loading nodes from %s", filename)
+        store, children_store = pickle.load(open(filename, "rb"))
+        LOGGER.info("Loaded")
+        return cls(store, children_store)
 
 
 class Node:

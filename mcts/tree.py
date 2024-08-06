@@ -1,8 +1,7 @@
 from dataclasses import dataclass
-import sqlite3
 import typing
 from typing import Optional
-import math
+import os
 import random
 import logging
 import game.game_state
@@ -29,10 +28,8 @@ class Tree:
         player_count: int = 2,
         iterations: int = 1000,
         constant: float = 1.4142135623730951,
-        commit: bool = True,
     ):
         self.filename = filename
-        self.commit = commit
         self.constant = constant
         self.loss_estimate = -1
         self.win_estimate = 1
@@ -48,9 +45,12 @@ class Tree:
         # Used for other threadabilith
         self.count_conn = None
 
-        self.node_store = NodeStore()
-
-        self.root = self.build_state_node(initial_state, 255, None)
+        if os.path.exists(filename):
+            self.node_store = NodeStore.from_disk(filename)
+            self.root = self.node_store.load(initial_state.hash())
+        else:
+            self.node_store = NodeStore()
+            self.root = self.build_state_node(initial_state, 255, None)
         self.expansion(self.root)
 
     def act(self, current_state: game.game_state.GameState) -> int:
@@ -194,3 +194,6 @@ class Tree:
     def node_count(self):
         # Creates a new conn, because it's not thread safe
         return self.node_store.count()
+
+    def to_disk(self):
+        self.node_store.to_disk(self.filename)
