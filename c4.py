@@ -41,27 +41,37 @@ def train(filename, tree: mcts.tree.Tree, episodes: int, use_speedo: bool):
         stop_event = threading.Event()
         speedo_thread = threading.Thread(target=speedo, args=(tree, stop_event))
         speedo_thread.start()
-    for episode_no in range(episodes):
-        LOGGER.info("Episode %d", episode_no)
-        game = c4.game.Game()
-        while game.state.winner == -1:
-            LOGGER.debug("Playing Turn")
-            action = tree.act(game.state)
-            game.act(action)
+    try:
+        for episode_no in range(episodes):
+            LOGGER.info("Episode %d", episode_no)
+            game = c4.game.Game()
+            while game.state.winner == -1:
+                LOGGER.debug("Playing Turn")
+                action = tree.act(game.state)
+                game.act(action)
 
-        LOGGER.debug("Winner: %d", game.state.winner)
-    if use_speedo:
-        stop_event.set()
+            LOGGER.debug("Winner: %d", game.state.winner)
+    finally:
+        if use_speedo:
+            stop_event.set()
 
 
 def speedo(tree: mcts.tree.Tree, stop_event: threading.Event):
     start_time = time.perf_counter()
     node_count = tree.node_count()
+    iterations_count = tree.total_iterations
     while not stop_event.is_set():
         t = time.perf_counter() - start_time
         new_node_count = tree.node_count()
         LOGGER.info("Nodes/second: %f", (float(new_node_count) - float(node_count)) / t)
         node_count = new_node_count
+
+        new_iterations_count = tree.total_iterations
+        LOGGER.info(
+            "Iterations/second: %f",
+            (float(new_iterations_count) - float(iterations_count)) / t,
+        )
+        iterations_count = new_iterations_count
         stop_event.wait(2)
 
 

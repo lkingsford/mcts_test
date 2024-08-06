@@ -41,6 +41,7 @@ class Tree:
         self.draw_estimate = 0
         self.iterations = iterations
         self.player_count = player_count
+        self.total_iterations = 0
 
         self.game_state_class = game_state_class
         self.game_class = game_class
@@ -72,6 +73,7 @@ class Tree:
             LOGGER.warn("Current state not found in database")
             current_action_node = self.build_state_node(current_state, 255, self.root)
         for iteration in range(self.iterations):
+            self.total_iterations += 1
             LOGGER.debug("---------------------")
             LOGGER.debug("Iteration %d", iteration)
             LOGGER.debug("## Selection")
