@@ -19,7 +19,7 @@ def human_play(game, tree):
         print("01234567")
         if game.state.next_player_id == 0:
             action = None
-            while not action:
+            while action == None:
                 try:
                     proposed_action = int(input("Enter your action: "))
                     if (proposed_action) in game.state.permitted_actions:
@@ -50,7 +50,7 @@ def train(filename, tree: mcts.tree.Tree, episodes: int, use_speedo: bool):
                 action = tree.act(game.state)
                 game.act(action)
 
-            LOGGER.debug("Winner: %d", game.state.winner)
+            LOGGER.info("Winner: %d", game.state.winner)
     finally:
         if use_speedo:
             stop_event.set()
@@ -60,6 +60,7 @@ def speedo(tree: mcts.tree.Tree, stop_event: threading.Event):
     start_time = time.perf_counter()
     node_count = tree.node_count()
     iterations_count = tree.total_iterations
+    selection_count = tree.total_select_inspections
     while not stop_event.is_set():
         t = time.perf_counter() - start_time
         new_node_count = tree.node_count()
@@ -72,6 +73,13 @@ def speedo(tree: mcts.tree.Tree, stop_event: threading.Event):
             (float(new_iterations_count) - float(iterations_count)) / t,
         )
         iterations_count = new_iterations_count
+
+        new_selection_count = tree.total_select_inspections
+        LOGGER.info(
+            "Selections/second: %f",
+            (float(new_selection_count) - float(selection_count)) / t,
+        )
+        selection_count = new_selection_count
         stop_event.wait(2)
 
 

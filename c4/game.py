@@ -1,6 +1,4 @@
-import copy
 from hashlib import sha256
-import sqlite3
 from dataclasses import dataclass
 from typing import Optional
 import logging
@@ -32,6 +30,16 @@ class GameState(game.game_state.GameState):
         # return sha256(bytes(self.previous_actions)).hexdigest()
         return "".join([str(action) for action in self.previous_actions])
 
+    def copy(self) -> "GameState":
+        return GameState(
+            self.next_player_id,
+            self.last_player_id,
+            [[column for column in row] for row in self.board],
+            self._winner,
+            [action for action in self._permitted_actions],
+            [action for action in self.previous_actions],
+        )
+
     @property
     def player_id(self):
         return self.last_player_id
@@ -58,7 +66,7 @@ class Game(game.game.Game):
         if not (state):
             self.initialize_game()
         else:
-            self.state = copy.deepcopy(state)
+            self.state = state.copy()
 
     @classmethod
     def from_state(cls, state: game.game.GameState) -> "Game":

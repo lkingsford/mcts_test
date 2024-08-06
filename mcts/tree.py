@@ -40,6 +40,7 @@ class Tree:
         self.iterations = iterations
         self.player_count = player_count
         self.total_iterations = 0
+        self.total_select_inspections = 0
 
         self.game_state_class = game_state_class
         self.game_class = game_class
@@ -89,19 +90,16 @@ class Tree:
     def selection(self, node: "Node") -> Optional["Node"]:
         checking_node = node
         LOGGER.debug("Selection checking %s", node.hash)
+        self.total_select_inspections += 1
 
-        # Reorder nodes so the order isn't always the same when there's a tie
-        # ... doesn't work maybe?
-        nodes = sorted(
-            checking_node.load_children(self.node_store), key=lambda _: random.random()
-        )
-        node_order = sorted(nodes, key=lambda n: n.ucb(self.constant), reverse=True)
+        nodes = checking_node.load_children(self.node_store)
+        nodes.sort(key=lambda n: n.ucb(self.constant), reverse=True)
         LOGGER.debug(
             "Node order: %s",
-            ",".join([f"{n.hash}: {n.ucb(self.constant)}" for n in node_order]),
+            ",".join([f"{n.hash}: {n.ucb(self.constant)}" for n in nodes]),
         )
 
-        for node_to_check in node_order:
+        for node_to_check in nodes:
             LOGGER.debug(
                 "   Checking node %s (UCB: %s} (from %s)",
                 node_to_check.hash,
