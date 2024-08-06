@@ -3,6 +3,8 @@
 
 import argparse
 import logging
+import threading
+import time
 import c4.game
 import mcts.tree
 
@@ -34,7 +36,11 @@ def human_play(game, tree):
         done = next_state.winner != -1
 
 
-def train(filename, tree: mcts.tree.Tree, episodes: int):
+def train(filename, tree: mcts.tree.Tree, episodes: int, use_speedo: bool):
+    if use_speedo:
+        stop_event = threading.Event()
+        speedo_thread = threading.Thread(target=speedo, args=(tree, stop_event))
+        speedo_thread.start()
     for episode_no in range(episodes):
         LOGGER.info("Episode %d", episode_no)
         game = c4.game.Game()
@@ -44,6 +50,19 @@ def train(filename, tree: mcts.tree.Tree, episodes: int):
             game.act(action)
 
         LOGGER.debug("Winner: %d", game.state.winner)
+    if use_speedo:
+        stop_event.set()
+
+
+def speedo(tree: mcts.tree.Tree, stop_event: threading.Event):
+    start_time = time.perf_counter()
+    node_count = tree.node_count()
+    while not stop_event.is_set():
+        t = time.perf_counter() - start_time
+        new_node_count = tree.node_count()
+        LOGGER.info("Nodes/second: %f", (float(new_node_count) - float(node_count)) / t)
+        node_count = new_node_count
+        stop_event.wait(2)
 
 
 def main():
@@ -82,6 +101,13 @@ def main():
         default=0,
         help="Increase verbosity of logging",
     )
+    parser.add_argument(
+        "-s",
+        "--speedo",
+        action="store_true",
+        default=False,
+        help="Whether to display a nodes/second count (default: False)",
+    )
 
     args = parser.parse_args()
 
@@ -93,6 +119,9 @@ def main():
             parser.error("--episodes must be greater than 0 for training.")
     else:
         args.episodes = None
+
+    if args.speedo:
+        args.verbose = max(args.verbose, 2)
 
     # Configure logging
     logger = logging.getLogger()
@@ -112,7 +141,7 @@ def main():
     if args.action == "play":
         human_play(game, tree)
     elif args.action == "train":
-        train(args.filename, tree, args.episodes)
+        train(args.filename, tree, args.episodes, args.speedo)
 
 
 if __name__ == "__main__":

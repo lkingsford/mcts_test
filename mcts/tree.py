@@ -33,6 +33,7 @@ class Tree:
         self.connection = sqlite3.connect(filename, autocommit=False)
         self.cursor = self.connection.cursor()
 
+        self.filename = filename
         self.commit = commit
         self.constant = constant
         self.loss_estimate = -1
@@ -43,6 +44,9 @@ class Tree:
 
         self.game_state_class = game_state_class
         self.game_class = game_class
+
+        # Used for other threadabilith
+        self.count_conn = None
 
         # Check if init'd
         self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
@@ -77,11 +81,10 @@ class Tree:
                 self.play_out(node)
             if not node:
                 break
-
-        # This could be taken out if multithreaded
-        if self.commit:
-            LOGGER.debug("Committing")
-            self.connection.commit()
+            # This could be taken out if multithreaded
+            if self.commit:
+                LOGGER.debug("Committing")
+                self.connection.commit()
 
         children = current_action_node.load_children(self.cursor)
         potential_actions = [
@@ -99,18 +102,6 @@ class Tree:
         # Problem appearing here - action '255' keeps appearing
         best_action = max(potential_actions, key=lambda n: n.ucb(self.constant))
         return best_action.action
-
-    # def selection(self, node: "Node") -> Optional["Node"]:
-    #     LOGGER.debug("## Selection")
-    #     while not node.leaf:
-    #         LOGGER.debug("Node %s", node.hash)
-    #         nodes = node.load_children(self.cursor)
-    #         if len(nodes) == 0:
-    #             # Not sure if this is the correct behaviour
-    #             LOGGER.debug("No children found in selection")
-    #             return None
-    #         node = max(nodes, key=lambda n: n.ucb(self.constant))
-    #     return node
 
     def selection(self, node: "Node") -> Optional["Node"]:
         checking_node = node
@@ -209,6 +200,12 @@ class Tree:
 
         new_node.save(self.cursor)
         return new_node
+
+    def node_count(self):
+        # Creates a new conn, because it's not thread safe
+        self.count_conn = self.count_conn or sqlite3.connect(self.filename)
+        cursor = self.count_conn.cursor()
+        return cursor.execute("SELECT COUNT(*) FROM node").fetchone()[0]
 
 
 class Node:
