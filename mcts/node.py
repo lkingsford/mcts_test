@@ -10,7 +10,7 @@ class NodeStore:
     def __init__(self):
         self._store: dict[str, "Node"] = dict()
         # Not ideal - but this is a first take
-        self._children_store: dict[str, list[str]] = dict()
+        self._children_store: dict[str, set[str]] = dict()
 
     def load(self, hash: str) -> Optional["Node"]:
         return self._store[hash]
@@ -21,8 +21,9 @@ class NodeStore:
     def save(self, node: "Node"):
         self._store[node.hash] = node
         if node.parent_hash not in self._children_store:
-            self._children_store[node.parent_hash] = []
-        self._children_store[node.parent_hash].append(node.hash)
+            self._children_store[node.parent_hash] = set()
+        if node.parent_hash != None:
+            self._children_store[node.parent_hash].add(node.hash)
 
     def count(self) -> int:
         return len(self._store)

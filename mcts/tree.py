@@ -58,7 +58,17 @@ class Tree:
         if not current_action_node:
             LOGGER.warn("Current state not found in database")
             current_action_node = self.build_state_node(current_state, 255, self.root)
-        for iteration in range(self.iterations):
+        iteration = 0
+
+        unexplored_first_level_nodes = [
+            node
+            for node in current_action_node.load_children(self.node_store)
+            if node.visit_count == 0
+        ]
+        while iteration < self.iterations or any(
+            [node for node in unexplored_first_level_nodes if node.leaf]
+        ):
+            iteration += 1
             self.total_iterations += 1
             LOGGER.debug("---------------------")
             LOGGER.debug("Iteration %d", iteration)
