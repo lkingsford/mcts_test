@@ -28,61 +28,6 @@ class GameState(game.game_state.GameState):
         self._permitted_actions = permitted_actions
         self.previous_actions = previous_actions
 
-    @classmethod
-    def create_state_table(cls, cursor: sqlite3.Cursor):
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS state (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                next_player_id INTEGER NOT NULL,
-                last_player_id INTEGER NOT NULL,
-                board BLOB NOT NULL,
-                winner INTEGER,
-                permitted_actions BLOB NOT NULL,
-                previous_actions BLOB NOT NULL
-            )
-            """
-        )
-
-    def save_state(self, cursor: sqlite3.Cursor) -> int:
-        board_serialized = bytes([cell for row in self.board for cell in row])
-
-        cursor.execute(
-            """ INSERT INTO state
-                (next_player_id, last_player_id, board, winner, permitted_actions, previous_actions)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (
-                self.next_player_id,
-                self.last_player_id,
-                (board_serialized),
-                self.winner,
-                bytes(self.permitted_actions),
-                bytes(self.previous_actions),
-            ),
-        )
-        if cursor.lastrowid:
-            return cursor.lastrowid
-        else:
-            raise Exception("Failed to save state")
-
-    @classmethod
-    def load_state(cls, cursor: sqlite3.Cursor, state_id: int) -> "GameState":
-        row = cursor.execute("SELECT * FROM state WHERE id = ?", (state_id,)).fetchone()
-
-        board = []
-        for i in range(0, len(row[3]), 8):
-            board.append(list(row[3][i : i + 8]))
-
-        return cls(
-            row[1],
-            row[2],
-            board,
-            row[4],
-            list(row[5]),
-            list(row[6]),
-        )
-
     def hash(self) -> str:
         # return sha256(bytes(self.previous_actions)).hexdigest()
         return "".join([str(action) for action in self.previous_actions])
