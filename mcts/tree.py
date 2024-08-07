@@ -6,7 +6,7 @@ import random
 import logging
 import game.game_state
 import game.game
-from mcts.node import Node, NodeStore
+from mcts.node import Node, NodeStore, RootNode
 
 
 LOGGER = logging.getLogger(__name__)
@@ -47,26 +47,33 @@ class Tree:
 
         if os.path.exists(filename):
             self.node_store = NodeStore.from_disk(filename)
-            self.root = self.node_store.load(initial_state.hash())
+            self.root = self.node_store.root
         else:
-            self.node_store = NodeStore()
-            self.root = self.build_state_node(initial_state, 255, None)
+            self.root = RootNode(initial_state)
+            self.node_store = NodeStore(self.root)
         self.expansion(self.root)
 
-    def act(self, current_state: game.game_state.GameState) -> int:
-        current_action_node = Node.load(self.node_store, current_state.hash())
-        if not current_action_node:
-            LOGGER.warn("Current state not found in database")
-            current_action_node = self.build_state_node(current_state, 255, self.root)
+    def get_node(self, state: game.game_state.GameState) -> Node:
+        # Slow for late game
+        node = self.root
+        for action in state.previous_actions:
+            node = node.children.get(action)
+        return node
+
+    def act(self, state: game.game_state.GameState) -> int:
+        current_action_node = self.get_node(state)
+
         iteration = 0
 
-        unexplored_first_level_nodes = [
-            node
-            for node in current_action_node.load_children(self.node_store)
-            if node.visit_count == 0
-        ]
+        def unexplored_first_level_nodes(node):
+            return [
+                action
+                for action, visit_count in enumerate(node.child_visit_count)
+                if visit_count == 0
+            ]
+
         while iteration < self.iterations or any(
-            [node for node in unexplored_first_level_nodes if node.leaf]
+            [node for node in unexplored_first_level_nodes(current_action_node)]
         ):
             iteration += 1
             self.total_iterations += 1
@@ -80,11 +87,9 @@ class Tree:
             if not node:
                 break
 
-        children = current_action_node.load_children(self.node_store)
+        children = current_action_node.children.values()
         potential_actions = [
-            child
-            for child in children
-            if child.action in current_state.permitted_actions
+            child for child in children if child.action in state.permitted_actions
         ]
         contains_255 = [n.action for n in children if n.action == 255]
         LOGGER.debug(
@@ -102,7 +107,7 @@ class Tree:
         LOGGER.debug("Selection checking %s", node.hash)
         self.total_select_inspections += 1
 
-        nodes = checking_node.load_children(self.node_store)
+        nodes = list(checking_node.children.values())
         nodes.sort(key=lambda n: n.ucb(self.constant), reverse=True)
         LOGGER.debug(
             "Node order: %s",
@@ -133,12 +138,9 @@ class Tree:
         for action in state.permitted_actions:
             game = self.game_class.from_state(state)
             new_state = game.act(action)
-
-            self.build_state_node(new_state, action, node)
-            LOGGER.debug("Building node %s", new_state.hash())
+            node.add_child(action, new_state)
 
         node.leaf = False
-        node.save(self.node_store)
 
     def play_out(self, node: "Node"):
         LOGGER.debug("## Play Out")
@@ -150,11 +152,9 @@ class Tree:
             LOGGER.debug("Action: %d", action)
             state = game.act(action)
 
-        if node.parent_hash:
+        if node.parent:
             # TODO: This shouldn't be done here. Constructor maybe?
-            parent_node = Node.load(self.node_store, node.parent_hash)
-            assert parent_node
-            node.parent_node_visit_count = parent_node.visit_count
+            assert node.parent
 
         reward = [0] * self.player_count
         if state.winner == -2:
@@ -165,31 +165,7 @@ class Tree:
             reward[state.winner] = self.win_estimate
 
         node.leaf = False
-        node.back_propogate(reward, self.node_store)
-
-    def build_state_node(
-        self,
-        new_state: game.game_state.GameState,
-        action: int,
-        parent_node: Optional["Node"],
-    ) -> "Node":
-        LOGGER.debug("### Build State Node")
-        # Builds and propogates if done
-
-        new_node = Node(
-            hash=new_state.hash(),
-            player_id=new_state.player_id,
-            action=action,
-            state=new_state,
-            parent_hash=parent_node.hash if parent_node else None,
-            value_estimate=0,
-            visit_count=0,
-            parent_node_visit_count=0,
-            leaf=True,
-        )
-
-        new_node.save(self.node_store)
-        return new_node
+        node.back_propogate(reward)
 
     def node_count(self):
         # Creates a new conn, because it's not thread safe

@@ -24,11 +24,11 @@ class GameState(game.game_state.GameState):
         self.board = board
         self._winner = winner
         self._permitted_actions = permitted_actions
-        self.previous_actions = previous_actions
+        self._previous_actions = previous_actions
 
     def hash(self) -> str:
         # return sha256(bytes(self.previous_actions)).hexdigest()
-        return "".join([str(action) for action in self.previous_actions])
+        return "".join([str(action) for action in self._previous_actions])
 
     def copy(self) -> "GameState":
         return GameState(
@@ -59,6 +59,18 @@ class GameState(game.game_state.GameState):
     @winner.setter
     def winner(self, value):
         self._winner = value
+
+    @classmethod
+    def max_action_count(cls) -> int:
+        return 8
+
+    @property
+    def previous_actions(self):
+        return self._previous_actions
+
+    @previous_actions.setter
+    def previous_actions(self, value):
+        self._previous_actions = value
 
 
 class Game(game.game.Game):

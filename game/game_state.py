@@ -19,3 +19,12 @@ class GameState(ABC):
     @abstractproperty
     def winner(self) -> int:
         pass
+
+    @classmethod
+    @abstractmethod
+    def max_action_count(cls) -> int:
+        pass
+
+    @abstractproperty
+    def previous_actions(self) -> list[int]:
+        pass

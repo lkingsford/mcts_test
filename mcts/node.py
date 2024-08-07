@@ -2,115 +2,100 @@ import logging
 from typing import Optional
 import math
 import pickle
+import numpy as np
 from game.game_state import GameState
 
 LOGGER = logging.getLogger(__name__)
 
 
 class NodeStore:
-    def __init__(
-        self,
-        store: Optional[dict[str, "Node"]] = None,
-        children_store: Optional[dict[str, set[str]]] = None,
-    ):
-        self._store: dict[str, "Node"] = store or dict()
-        # Not ideal - but this is a first take
-        self._children_store: dict[str, set[str]] = children_store or dict()
-
-    def load(self, hash: str) -> Optional["Node"]:
-        return self._store[hash]
-
-    def load_all_children(self, node: "Node") -> list["Node"]:
-        return [self._store[child] for child in self._children_store[node.hash]]
-
-    def save(self, node: "Node"):
-        self._store[node.hash] = node
-        if node.parent_hash not in self._children_store:
-            self._children_store[node.parent_hash] = set()
-        if node.parent_hash != None:
-            self._children_store[node.parent_hash].add(node.hash)
+    def __init__(self, root: Optional["Node"] = None):
+        self.root = root
 
     def count(self) -> int:
-        return len(self._store)
+        if self.root:
+            return self.root.visit_count
+        else:
+            return 0
 
     def to_disk(self, filename: str):
-        LOGGER.info("Saving %d nodes to %s", len(self._store), filename)
-        pickle.dump([self._store, self._children_store], open(filename, "wb"))
+        assert self.root
+        LOGGER.info("Saving %d nodes to %s", self.root.visit_count, filename)
+        pickle.dump(self.root, open(filename, "wb"))
         LOGGER.info("Saved")
 
     @classmethod
     def from_disk(cls, filename: str):
         LOGGER.info("Loading nodes from %s", filename)
-        store, children_store = pickle.load(open(filename, "rb"))
+        root = pickle.load(open(filename, "rb"))
         LOGGER.info("Loaded")
-        return cls(store, children_store)
+        return cls(root)
 
 
 class Node:
     def __init__(
         self,
-        hash: str,
         player_id: int,
         action: int,
         state: GameState,
-        parent_node_visit_count: int,
-        parent_hash: Optional[str],
+        parent: Optional["Node"],
         value_estimate: float,
         visit_count: int,
-        leaf: bool = True,
+        leaf: bool,
     ):
-        self.hash = hash
-        self.player_id = player_id
         self.action = action
+        self.parent = parent
+        self.value_estimate = value_estimate
+        self.visit_count = visit_count
+        self.hash = state.hash
+        self.player_id = player_id
         self.state = state
-        self.parent_hash = parent_hash
-        self._value_estimate = value_estimate
-        self._visit_count = visit_count
-        self._parent_node_visit_count = parent_node_visit_count
-        self._ucb = None
-        self._constant = None
         self.leaf = leaf
+        self._constant = None
+        self.children: dict[int, "Node"] = {}
+        self.child_visit_count = np.zeros(state.max_action_count())
+        self.child_value = np.zeros(state.max_action_count())
+
+    def add_child(self, action: int, state: GameState):
+        self.children[action] = Node(
+            player_id=state.player_id,
+            action=action,
+            state=state,
+            parent=self,
+            value_estimate=0,
+            visit_count=0,
+            leaf=True,
+        )
+        self.leaf = False
 
     @property
     def value_estimate(self):
-        return self._value_estimate
+        return self.parent.child_value[self.action]
 
     @value_estimate.setter
     def value_estimate(self, value):
-        self._value_estimate = value
-        self._ucb = None
+        self.parent.child_value[self.action] = value
 
     @property
     def visit_count(self):
-        return self._visit_count
+        return self.parent.child_visit_count[self.action]
 
     @visit_count.setter
     def visit_count(self, value):
-        self._visit_count = value
-        self._ucb = None
+        self.parent.child_visit_count[self.action] = value
 
     @property
     def parent_node_visit_count(self):
-        return self._parent_node_visit_count
-
-    @parent_node_visit_count.setter
-    def parent_node_visit_count(self, value):
-        self._parent_node_visit_count = value
-        self._ucb = None
+        return self.parent.visit_count
 
     def ucb(self, constant):
-        # Caching, because potentially expensive to compute
-        if self._ucb is None or self._constant != constant:
-            try:
-                self._ucb = self.value_estimate + constant * math.sqrt(
-                    math.log(max(1, self.parent_node_visit_count)) / self.visit_count
-                )
-            except ZeroDivisionError:
-                self._ucb = float("inf")
-        self._constant = constant
-        return self._ucb
+        if self.visit_count == 0:
+            return float("inf")
+        return self.value_estimate + constant * math.sqrt(
+            math.log(max(1, self.parent_node_visit_count)) / self.visit_count
+        )
 
-    def back_propogate(self, value_d: list[int], node_store: NodeStore):
+    def back_propogate(self, value_d: list[int]):
         """Propogate the value
 
         Only effects this node if the player_id matches; one tree for both
@@ -120,37 +105,40 @@ class Node:
         Args:
             value_d (_type_): _description_
             player_id (_type_): _description_
-            cursor (sqlite3.Cursor): _description_
         """
 
         self.value_estimate += value_d[self.player_id]
         self.visit_count += 1
-        if self.parent_hash:
-            parent = Node.load(node_store, self.parent_hash)
-            assert parent
-            parent.back_propogate(value_d, node_store)
-
-            # last_action_node = self.last_action_node(cursor, self.player_id)
-            self.parent_node_visit_count = parent.visit_count
-
-        self.save(node_store)
+        if self.parent:
+            self.parent.back_propogate(value_d)
 
     @classmethod
     def init_table(Cls, node_store: NodeStore):
         pass
 
-    def save(self, node_store: NodeStore):
-        node_store.save(self)
 
-        if self.parent_hash:
-            parent = Node.load(node_store, self.parent_hash)
-            assert parent
-            parent.leaf = False
-            parent.save(node_store)
+class RootNode(Node):
+    def __init__(self, state: GameState):
+        super().__init__(0, 255, state, None, 0, 0, True)
+        self._visit_count = 0
+        self._value_estimate = 0
 
-    @classmethod
-    def load(cls, node_store: NodeStore, hash: str) -> Optional["Node"]:
-        return node_store.load(hash)
+    @property
+    def visit_count(self):
+        return self._visit_count
 
-    def load_children(self, node_store: NodeStore) -> list["Node"]:
-        return node_store.load_all_children(self)
+    @visit_count.setter
+    def visit_count(self, value):
+        self._visit_count = value
+
+    @property
+    def parent_node_visit_count(self):
+        return self.visit_count
+
+    @property
+    def value_estimate(self):
+        return self._value_estimate
+
+    @value_estimate.setter
+    def value_estimate(self, value):
+        self._value_estimate = value
