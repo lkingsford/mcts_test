@@ -2,8 +2,10 @@ from hashlib import sha256
 from dataclasses import dataclass
 from typing import Optional
 import logging
+import numpy as np
 import game.game
 import game.game_state
+
 
 LOGGER = logging.getLogger(__name__)
 
@@ -88,9 +90,8 @@ class Game(game.game.Game):
 
     def initialize_game(self) -> GameState:
         self.finished = False
-        self.state = GameState(
-            1, -1, [[255 for _ in range(8)] for _ in range(8)], -1, list(range(8)), []
-        )
+        board = np.zeros((8, 8), dtype=int)
+        self.state = GameState(1, -1, board, -1, list(range(8)), [])
         return self.state
 
     def act(self, column) -> GameState:
@@ -98,21 +99,23 @@ class Game(game.game.Game):
 
         board = self.state.board
         for row in reversed(board):
-            if row[column] == 255:
-                row[column] = self.state.next_player_id
+            if row[column] == 0:
+                row[column] = self.state.next_player_id + 1
                 break
 
         self.state.last_player_id = self.state.next_player_id
         self.state.next_player_id = (self.state.next_player_id + 1) % 2
 
-        self.state.permitted_actions = [ix for ix in range(8) if board[0][ix] == 255]
+        self.state.permitted_actions = [ix for ix in range(8) if board[0][ix] == 0]
 
+        # Board representation is 0 for empty to allow tighter memory packing
+        # As a result, need to subtract one to match player ids
         # Check horizontal win
         for row in board:
             for ix in range(0, 4):
-                winner = row[ix] == row[ix + 1] == row[ix + 2] == row[ix + 3] != 255
+                winner = row[ix] == row[ix + 1] == row[ix + 2] == row[ix + 3] != 0
                 if winner:
-                    self.state.winner = row[ix]
+                    self.state.winner = row[ix] - 1
                     return self.state
 
         # Check vertical win
@@ -123,10 +126,10 @@ class Game(game.game.Game):
                     == board[iy + 1][ix]
                     == board[iy + 2][ix]
                     == board[iy + 3][ix]
-                    != 255
+                    != 0
                 )
                 if winner:
-                    self.state.winner = board[iy][ix]
+                    self.state.winner = board[iy][ix] - 1
                     return self.state
 
         # Check for \ win
@@ -137,10 +140,10 @@ class Game(game.game.Game):
                     == board[iy + 1][ix + 1]
                     == board[iy + 2][ix + 2]
                     == board[iy + 3][ix + 3]
-                    != 255
+                    != 0
                 )
                 if winner:
-                    self.state.winner = board[iy][ix]
+                    self.state.winner = board[iy][ix] - 1
                     return self.state
 
         for iy in range(0, 5):
@@ -150,13 +153,13 @@ class Game(game.game.Game):
                     == board[iy + 1][ix - 1]
                     == board[iy + 2][ix - 2]
                     == board[iy + 3][ix - 3]
-                    != 255
+                    != 0
                 )
                 if winner:
-                    self.state.winner = board[iy][ix]
+                    self.state.winner = board[iy][ix] - 1
                     return self.state
 
-        stalemate = not (any([any([cell == 255 for cell in row]) for row in board]))
+        stalemate = not (any([any([cell == 0 for cell in row]) for row in board]))
 
         if stalemate:
             self.state.winner = -2
@@ -167,12 +170,12 @@ class Game(game.game.Game):
 
     def debug_print(self):
         for row in self.state.board:
-            print("".join([str(column) if column != 255 else "." for column in row]))
+            print("".join([str(column) if column != 0 else "." for column in row]))
         print()
 
     def debug_log(self):
         if LOGGER.level <= logging.DEBUG:
             for row in self.state.board:
                 LOGGER.debug(
-                    "".join([str(column) if column != 255 else "." for column in row])
+                    "".join([str(column) if column != 0 else "." for column in row])
                 )
