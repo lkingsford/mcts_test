@@ -159,7 +159,8 @@ class Game(game.game.Game):
         print()
 
     def debug_log(self):
-        for row in self.state.board:
-            LOGGER.debug(
-                "".join([str(column) if column != 255 else "." for column in row])
-            )
+        if LOGGER.level <= logging.DEBUG:
+            for row in self.state.board:
+                LOGGER.debug(
+                    "".join([str(column) if column != 255 else "." for column in row])
+                )
