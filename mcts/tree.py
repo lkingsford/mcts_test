@@ -63,39 +63,29 @@ class Tree:
 
     def act(self, state: game.game_state.GameState) -> int:
         current_action_node = self.get_node(state)
+        self.expansion(current_action_node)
 
         iteration = 0
 
-        def unexplored_first_level_nodes(node):
-            return [
-                action
-                for action, visit_count in enumerate(node.child_visit_count)
-                if visit_count == 0
-            ]
-
-        while iteration < self.iterations or any(
-            [node for node in unexplored_first_level_nodes(current_action_node)]
-        ):
+        while iteration < self.iterations:
             iteration += 1
             self.total_iterations += 1
             LOGGER.debug("---------------------")
             LOGGER.debug("Iteration %d", iteration)
             LOGGER.debug("## Selection")
             node = self.selection(current_action_node)
-            if node and node.leaf:
+            if node:
                 self.expansion(node)
                 self.play_out(node)
-            if not node:
-                break
 
-        best_action = current_action_node.best_pick(
+        best_pick = current_action_node.best_pick(
             self.constant, state.permitted_actions
-        )[0]
-        return best_action
+        )
+        return best_pick[0]
 
     def selection(self, node: "Node") -> Optional["Node"]:
         checking_node = node
-        LOGGER.debug("Selection checking %s", node.hash)
+        LOGGER.debug("Selection checking %s", node.hash())
         self.total_select_inspections += 1
 
         order = node.best_pick(self.constant, node.state.permitted_actions)
@@ -117,6 +107,8 @@ class Tree:
         LOGGER.debug("Expanding node %s", node.hash)
         state = node.state
         for action in state.permitted_actions:
+            if action in node.children:
+                continue
             game = self.game_class.from_state(state)
             new_state = game.act(action)
             node.add_child(action, new_state)
