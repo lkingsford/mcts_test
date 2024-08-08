@@ -88,12 +88,20 @@ class Node:
     def parent_node_visit_count(self):
         return self.parent.visit_count
 
-    def ucb(self, constant):
-        if self.visit_count == 0:
-            return float("inf")
-        return self.value_estimate + constant * math.sqrt(
-            math.log(max(1, self.parent_node_visit_count)) / self.visit_count
-        )
+    def child_ucb(self, constant):
+        q = self.child_value / (1 + self.child_visit_count)
+        u = np.sqrt(np.log(self.parent_node_visit_count) / (1 + self.child_visit_count))
+        return q + u
+
+    def best_pick(self, constant, permitted_actions) -> list[int]:
+        ucbs = self.child_ucb(constant)
+        LOGGER.debug("Best pick from: %s", (ucbs.tolist()))
+        # Not sure how fast this list comprehension is
+        return [
+            action
+            for action in np.argsort(self.child_ucb(constant))[::-1]
+            if action in permitted_actions
+        ]
 
     def back_propogate(self, value_d: list[int]):
         """Propogate the value
@@ -120,7 +128,7 @@ class Node:
 class RootNode(Node):
     def __init__(self, state: GameState):
         super().__init__(0, 255, state, None, 0, 0, True)
-        self._visit_count = 0
+        self._visit_count = 1
         self._value_estimate = 0
 
     @property

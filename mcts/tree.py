@@ -4,6 +4,7 @@ from typing import Optional
 import os
 import random
 import logging
+import numpy as np
 import game.game_state
 import game.game
 from mcts.node import Node, NodeStore, RootNode
@@ -87,40 +88,20 @@ class Tree:
             if not node:
                 break
 
-        children = current_action_node.children.values()
-        potential_actions = [
-            child for child in children if child.action in state.permitted_actions
-        ]
-        contains_255 = [n.action for n in children if n.action == 255]
-        LOGGER.debug(
-            "Potential actions: %s",
-            ",".join(
-                [f"{n.action}: {n.ucb(self.constant)}" for n in potential_actions]
-            ),
-        )
-        # Problem appearing here - action '255' keeps appearing
-        best_action = max(potential_actions, key=lambda n: n.ucb(self.constant))
-        return best_action.action
+        best_action = current_action_node.best_pick(
+            self.constant, state.permitted_actions
+        )[0]
+        return best_action
 
     def selection(self, node: "Node") -> Optional["Node"]:
         checking_node = node
         LOGGER.debug("Selection checking %s", node.hash)
         self.total_select_inspections += 1
 
-        nodes = list(checking_node.children.values())
-        nodes.sort(key=lambda n: n.ucb(self.constant), reverse=True)
-        LOGGER.debug(
-            "Node order: %s",
-            ",".join([f"{n.hash}: {n.ucb(self.constant)}" for n in nodes]),
-        )
+        order = node.best_pick(self.constant, node.state.permitted_actions)
 
-        for node_to_check in nodes:
-            LOGGER.debug(
-                "   Checking node %s (UCB: %s} (from %s)",
-                node_to_check.hash,
-                node.ucb(self.constant),
-                node.hash,
-            )
+        for action in order:
+            node_to_check = node.children[action]
             if node_to_check.leaf:
                 return node_to_check
             else:
