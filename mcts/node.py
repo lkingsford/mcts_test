@@ -97,11 +97,12 @@ class Node:
         ucbs = self.child_ucb(constant)
         LOGGER.debug("Best pick from: %s", (ucbs.tolist()))
         # Not sure how fast this list comprehension is
-        return [
+        best_picks = [
             action
             for action in np.argsort(self.child_ucb(constant))[::-1]
-            if action in permitted_actions
+            if action in permitted_actions and action in self.children
         ]
+        return best_picks
 
     def back_propogate(self, value_d: list[int]):
         """Propogate the value
