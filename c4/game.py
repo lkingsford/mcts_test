@@ -166,18 +166,9 @@ class Game(game.game.Game):
         if stalemate:
             self.state.winner = -2
 
-        self.debug_log()
-
         return self.state
 
     def debug_print(self):
         for row in self.state.board:
             print("".join([str(column) if column != 0 else "." for column in row]))
         print()
-
-    def debug_log(self):
-        if LOGGER.level <= logging.DEBUG:
-            for row in self.state.board:
-                LOGGER.debug(
-                    "".join([str(column) if column != 0 else "." for column in row])
-                )
