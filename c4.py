@@ -52,7 +52,7 @@ def train(filename, tree: mcts.tree.Tree, episodes: int, use_speedo: bool):
                 game.act(action)
 
             LOGGER.info("Winner: %d", game.state.winner)
-            if episode_no % 10 == 0:
+            if episode_no % 10 == 0 or episode_no == episodes - 1:
                 tree.to_disk()
     finally:
         if use_speedo:
