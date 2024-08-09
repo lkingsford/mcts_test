@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod, abstractproperty
 import sqlite3
+import typing
 
 
 class GameState(ABC):
@@ -20,11 +21,9 @@ class GameState(ABC):
     def winner(self) -> int:
         pass
 
-    @classmethod
-    @abstractmethod
-    def max_action_count(cls) -> int:
-        pass
-
     @abstractproperty
     def previous_actions(self) -> list[int]:
         pass
+
+
+GameStateType = typing.TypeVar("GameStateType", bound=GameState, covariant=True)

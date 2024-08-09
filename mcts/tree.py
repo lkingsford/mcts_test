@@ -7,6 +7,8 @@ import logging
 import numpy as np
 import game.game_state
 import game.game
+from game.game_state import GameStateType
+from game.game import GameType
 from mcts.node import Node, NodeStore, RootNode
 
 
@@ -14,12 +16,6 @@ LOGGER = logging.getLogger(__name__)
 
 
 class Tree:
-
-    GameStateType = typing.TypeVar(
-        "GameStateType", bound=game.game_state.GameState, covariant=True
-    )
-    GameType = typing.TypeVar("GameType", bound=game.game.Game, covariant=True)
-
     def __init__(
         self,
         filename: str,
@@ -50,7 +46,7 @@ class Tree:
             self.node_store = NodeStore.from_disk(filename)
             self.root = self.node_store.root
         else:
-            self.root = RootNode(initial_state)
+            self.root = RootNode(initial_state, game_class)
             self.node_store = NodeStore(self.root)
         self.expansion(self.root)
 
@@ -84,8 +80,7 @@ class Tree:
         return best_pick[0]
 
     def selection(self, node: "Node") -> Optional["Node"]:
-        checking_node = node
-        LOGGER.debug("Selection checking %s", node.hash())
+        LOGGER.debug("Selection checking %d (%s)", node.action)
         self.total_select_inspections += 1
 
         order = node.best_pick(self.constant, node.state.permitted_actions)
@@ -104,14 +99,12 @@ class Tree:
     def expansion(self, node: "Node"):
         # Create nodes for all legal actions
         LOGGER.debug("## Expansion")
-        LOGGER.debug("Expanding node %s", node.hash)
+        LOGGER.debug("Expanding node %d", node.action)
         state = node.state
         for action in state.permitted_actions:
             if action in node.children:
                 continue
-            game = self.game_class.from_state(state)
-            new_state = game.act(action)
-            node.add_child(action, new_state)
+            node.add_child(action)
 
         node.leaf = False
 

@@ -64,10 +64,6 @@ class GameState(game.game_state.GameState):
     def winner(self, value):
         self._winner = value
 
-    @classmethod
-    def max_action_count(cls) -> int:
-        return 8
-
     @property
     def previous_actions(self):
         return self._previous_actions
@@ -95,6 +91,10 @@ class Game(game.game.Game):
         board = np.zeros((8, 8), dtype=np.uint8)
         self.state = GameState(1, -1, board, -1, list(range(8)), [])
         return self.state
+
+    @classmethod
+    def max_action_count(cls) -> int:
+        return 8
 
     def act(self, column) -> GameState:
         self.state.previous_actions.append(column)

@@ -1,8 +1,10 @@
+from contextlib import contextmanager
 import logging
 from typing import Optional
 import math
 import pickle
 import numpy as np
+from game.game import GameType
 from game.game_state import GameState
 
 LOGGER = logging.getLogger(__name__)
@@ -35,9 +37,10 @@ class NodeStore:
 class Node:
     def __init__(
         self,
-        player_id: int,
+        player_id: Optional[int],
         action: int,
-        state: GameState,
+        state: Optional[GameState],
+        game_class: GameType,
         parent: Optional["Node"],
         value_estimate: float,
         visit_count: int,
@@ -47,26 +50,35 @@ class Node:
         self.parent = parent
         self.value_estimate = value_estimate
         self.visit_count = visit_count
-        self.hash = state.hash
-        self.player_id = player_id
-        self.state = state
+        self._player_id = player_id
+        self._state = state
+        self.game_class = game_class
         self.leaf = leaf
         self._constant = None
         self.children: dict[int, "Node"] = {}
-        self.child_visit_count = np.zeros(state.max_action_count())
-        self.child_value = np.zeros(state.max_action_count())
+        self.child_visit_count = np.zeros(game_class.max_action_count())
+        self.child_value = np.zeros(game_class.max_action_count())
+        # self._temp_visit_count = np.zeros(state.max_action_count())
 
-    def add_child(self, action: int, state: GameState):
+    def add_child(self, action: int, state: Optional[GameState] = None):
         self.children[action] = Node(
-            player_id=state.player_id,
+            player_id=state.player_id if state else None,
             action=action,
             state=state,
             parent=self,
             value_estimate=0,
             visit_count=0,
+            game_class=self.game_class,
             leaf=True,
         )
         self.leaf = False
+
+    @property
+    def player_id(self):
+        if self._state:
+            return self._state.player_id
+        else:
+            raise ValueError("State not set")
 
     @property
     def value_estimate(self):
@@ -88,8 +100,24 @@ class Node:
     def parent_node_visit_count(self):
         return self.parent.visit_count
 
+    @property
+    def hash(self):
+        if self._state:
+            return self._state.hash()
+        else:
+            return None
+
+    @property
+    def state(self):
+        if self._state:
+            return self._state
+        else:
+            # Not sure if I'm comfortable this being in a property
+            self._state = self.game_class.from_state(self.parent.state).act(self.action)
+            return self._state
     def child_ucb(self, constant):
-        q = self.child_value / (1 + self.child_visit_count)
+        # q = (self.temp_visit_count + self.child_value) / (1 + self.child_visit_count)
+        q = (self.child_value) / (1 + self.child_visit_count)
         u = np.sqrt(np.log(self.parent_node_visit_count) / (1 + self.child_visit_count))
         return q + u
 
@@ -127,8 +155,8 @@ class Node:
 
 
 class RootNode(Node):
-    def __init__(self, state: GameState):
-        super().__init__(0, 255, state, None, 0, 0, True)
+    def __init__(self, state: GameState, game_class: callable):
+        super().__init__(0, 255, state, game_class, None, 0, 0, True)
         self._visit_count = 1
         self._value_estimate = 0
 
