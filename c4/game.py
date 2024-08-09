@@ -36,7 +36,9 @@ class GameState(game.game_state.GameState):
         return GameState(
             self.next_player_id,
             self.last_player_id,
-            [[column for column in row] for row in self.board],
+            np.array(
+                [[column for column in row] for row in self.board], dtype=np.uint8
+            ),
             self._winner,
             [action for action in self._permitted_actions],
             [action for action in self.previous_actions],
@@ -90,7 +92,7 @@ class Game(game.game.Game):
 
     def initialize_game(self) -> GameState:
         self.finished = False
-        board = np.zeros((8, 8), dtype=int)
+        board = np.zeros((8, 8), dtype=np.uint8)
         self.state = GameState(1, -1, board, -1, list(range(8)), [])
         return self.state
 
