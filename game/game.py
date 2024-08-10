@@ -6,7 +6,7 @@ from game.game_state import GameState
 
 class Game(ABC):
     @abstractmethod
-    def act(self, column) -> "GameState":
+    def act(self, action) -> "GameState":
         pass
 
     @classmethod
@@ -18,6 +18,24 @@ class Game(ABC):
     @abstractmethod
     def max_action_count(cls) -> int:
         pass
+
+    def non_player_act(self) -> tuple[list[int], "GameState"]:
+        """
+        Perform a non-player action on the current state
+        """
+        if "_state" in self.__dict__:
+            return ([], getattr(self, "_state"))
+        else:
+            raise NotImplementedError
+
+    def apply_non_player_acts(self, actions: list[int]) -> "GameState":
+        """
+        Apply a sequence of non-player actions to the current state
+        """
+        if "_state" in self.__dict__:
+            return getattr(self, "_state")
+        else:
+            raise NotImplementedError
 
 
 GameType = typing.TypeVar("GameType", bound=Game, covariant=True)
