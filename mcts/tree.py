@@ -99,7 +99,7 @@ class Tree:
     def expansion(self, node: "Node"):
         # Create nodes for all legal actions
         LOGGER.debug("## Expansion")
-        LOGGER.debug("Expanding node %d", node.action)
+        LOGGER.debug("Expanding node %s", str(node.action))
         state = node.state
         for action in state.permitted_actions:
             if action in node.children:
@@ -120,10 +120,6 @@ class Tree:
                 state = game.apply_non_player_acts(action)
             else:
                 state = game.act(action)
-
-        if node.parent:
-            # TODO: This shouldn't be done here. Constructor maybe?
-            assert node.parent
 
         reward = [0] * self.player_count
         if state.winner == -2:

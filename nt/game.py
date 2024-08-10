@@ -15,7 +15,7 @@ ACTION_TAKE = 2
 
 class NtState(GameState):
     def __init__(
-        self, next_player_id, last_player_id, previous_actions, next_automated=False
+        self, next_player_id, last_player_id, previous_actions, next_automated
     ):
         # Technically, only cards 3 to 35 are there - but memory
         # cost is worth it
@@ -105,9 +105,9 @@ class NtGame(Game):
     def state(self) -> "NtState":
         return self._state
 
-    def __init__(self, state: typing.Optional["NtState"] = None) -> None:
+    def __init__(self, state=None):
         if state:
-            self._state = state
+            self._state = state.copy()
         else:
             self._state = self.initialize_game()
 
