@@ -113,8 +113,14 @@ class Node:
             return self._state
         else:
             # Not sure if I'm comfortable this being in a property
-            self._state = self.game_class.from_state(self.parent.state).act(self.action)
+            game = self.game_class.from_state(self.parent.state)
+            if self.parent.state.next_automated:
+                self._state = game.apply_non_player_acts(self.action)
+            else:
+                self._state = game.act(self.action)
+            assert not isinstance(self._state.previous_actions[-1], np.int64)
             return self._state
+
     def child_ucb(self, constant):
         # q = (self.temp_visit_count + self.child_value) / (1 + self.child_visit_count)
         q = (self.child_value) / (1 + self.child_visit_count)
@@ -125,11 +131,14 @@ class Node:
         ucbs = self.child_ucb(constant)
         LOGGER.debug("Best pick from: %s", (ucbs.tolist()))
         # Not sure how fast this list comprehension is
+        # Child value is never set for automated turns - so this shold
+        # still work
         best_picks = [
             action
             for action in np.argsort(self.child_ucb(constant))[::-1]
             if action in permitted_actions and action in self.children
         ]
+        LOGGER.debug("-> %s", best_picks)
         return best_picks
 
     def back_propogate(self, value_d: list[int]):
@@ -144,9 +153,10 @@ class Node:
             player_id (_type_): _description_
         """
 
-        self.value_estimate += value_d[self.player_id]
         self.visit_count += 1
         if self.parent:
+            if not (self.parent.state.next_automated):
+                self.value_estimate += value_d[self.player_id]
             self.parent.back_propogate(value_d)
 
     @classmethod
@@ -156,7 +166,7 @@ class Node:
 
 class RootNode(Node):
     def __init__(self, state: GameState, game_class: callable):
-        super().__init__(0, 255, state, game_class, None, 0, 0, True)
+        super().__init__(0, 255, state.copy(), game_class, None, 0, 0, True)
         self._visit_count = 1
         self._value_estimate = 0
 

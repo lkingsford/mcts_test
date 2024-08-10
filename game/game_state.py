@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod, abstractproperty
+import copy
 import sqlite3
 import typing
 
@@ -22,8 +23,17 @@ class GameState(ABC):
         pass
 
     @abstractproperty
-    def previous_actions(self) -> list[int]:
+    def previous_actions(self) -> list[typing.Union[int, tuple[int, ...]]]:
         pass
+
+    @property
+    def next_automated(self) -> bool:
+        return False
+
+    @property
+    def copy(self) -> "GameState":
+        # Slwo, shold be overwritten
+        return copy.deepcopy(self)
 
 
 GameStateType = typing.TypeVar("GameStateType", bound=GameState, covariant=True)

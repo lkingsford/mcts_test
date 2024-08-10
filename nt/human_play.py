@@ -1,11 +1,15 @@
+import random
 import nt.game
 
 
 def human_play(game: nt.game.NtGame, tree):
     done = False
-    state = game.initialize_game()
+    human_player_id = random.randint(0, game.player_count + 1)
+    state = game.state
     while not done:
-        _actions, state = game.non_player_act()
+        node = tree.get_node(state)
+        actions, state = game.non_player_act()
+        node.children[actions] = tree.get_node(state)
         print("--------")
         for player in range(game.player_count):
             player_cards = [
@@ -15,7 +19,7 @@ def human_play(game: nt.game.NtGame, tree):
             player_cards_str = "".join(player_cards)
             player_info = (
                 str(player)
-                + " "
+                + (">" if player == state.next_player_id else " ")
                 + player_cards_str
                 + " - "
                 + str(state.chips[player])
@@ -26,21 +30,24 @@ def human_play(game: nt.game.NtGame, tree):
         print(
             f"Current Card: {state.card_on_board} ({state.chips_on_board} chips) - {state.cards_remaining()} cards remaining"
         )
-        must_take = state.chips[state.player_id] == 0
-        action = None
-        if must_take:
-            print("Must Take")
-            action = nt.game.ACTION_TAKE
+        if state.next_player_id == human_player_id:
+            must_take = len(state.permitted_actions) == 1
+            action = None
+            if must_take:
+                print("Must Take")
+                action = nt.game.ACTION_TAKE
+            else:
+                while action == None:
+                    proposed_action_raw = input("(N)o Thanks or (T)ake:")
+                    proposed_action_cleaned = proposed_action_raw.strip().upper()
+                    if proposed_action_cleaned in ("N" or ""):
+                        action = nt.game.ACTION_NO_THANKS
+                    elif proposed_action_cleaned == "T":
+                        action = nt.game.ACTION_TAKE
+                    else:
+                        print("✖️")
         else:
-            while action == None:
-                proposed_action_raw = input("(N)o Thanks or (T)ake:")
-                proposed_action_cleaned = proposed_action_raw.strip().upper()
-                if proposed_action_cleaned == "N" or "":
-                    action = nt.game.ACTION_NO_THANKS
-                elif proposed_action_cleaned == "T":
-                    action = nt.game.ACTION_TAKE
-                else:
-                    print("✖️")
+            action = tree.act(state)
 
         assert action
         state = game.act(action)

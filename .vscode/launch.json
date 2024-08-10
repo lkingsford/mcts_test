@@ -57,5 +57,19 @@
                 "-vvvv"
             ]
         },
+        {
+            "name": "Python Debugger: monty nt play",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "monty.py",
+            "console": "integratedTerminal",
+            "args": [
+                "nt",
+                "play",
+                "-i",
+                "10",
+                "-vvvv"
+            ]
+        },
     ]
 }
