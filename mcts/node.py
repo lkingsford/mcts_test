@@ -113,8 +113,13 @@ class Node:
             return self._state
         else:
             # Not sure if I'm comfortable this being in a property
-            self._state = self.game_class.from_state(self.parent.state).act(self.action)
+            game = self.game_class.from_state(self.parent.state)
+            if self.parent.state.next_automated:
+                self._state = game.apply_non_player_acts(self.action)
+            else:
+                self._state = game.act(self.action)
             return self._state
+
     def child_ucb(self, constant):
         # q = (self.temp_visit_count + self.child_value) / (1 + self.child_visit_count)
         q = (self.child_value) / (1 + self.child_visit_count)
@@ -125,6 +130,8 @@ class Node:
         ucbs = self.child_ucb(constant)
         LOGGER.debug("Best pick from: %s", (ucbs.tolist()))
         # Not sure how fast this list comprehension is
+        # Child value is never set for automated turns - so this shold
+        # still work
         best_picks = [
             action
             for action in np.argsort(self.child_ucb(constant))[::-1]
@@ -144,7 +151,8 @@ class Node:
             player_id (_type_): _description_
         """
 
-        self.value_estimate += value_d[self.player_id]
+        if not (self.state.next_automated):
+            self.value_estimate += value_d[self.player_id]
         self.visit_count += 1
         if self.parent:
             self.parent.back_propogate(value_d)

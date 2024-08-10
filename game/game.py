@@ -19,16 +19,16 @@ class Game(ABC):
     def max_action_count(cls) -> int:
         pass
 
-    def non_player_act(self) -> tuple[list[int], "GameState"]:
+    def non_player_act(self) -> tuple[tuple[int, ...], "GameState"]:
         """
         Perform a non-player action on the current state
         """
         if "_state" in self.__dict__:
-            return ([], getattr(self, "_state"))
+            return (tuple(), getattr(self, "_state"))
         else:
             raise NotImplementedError
 
-    def apply_non_player_acts(self, actions: list[int]) -> "GameState":
+    def apply_non_player_acts(self, actions: tuple[int, ...]) -> "GameState":
         """
         Apply a sequence of non-player actions to the current state
         """

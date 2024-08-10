@@ -146,11 +146,16 @@ def main():
             train(filename, tree, args.episodes, args.speedo)
     elif args.game == "nt":
         game = nt.game.NtGame()
-        # tree = mcts.tree.Tree(
-        #    filename, nt.game.NtState, nt.game.NtGame, game.state, 2, args.iterations
-        # )
+        tree = mcts.tree.Tree(
+            filename,
+            nt.game.NtState,
+            nt.game.NtGame,
+            game.state,
+            game.player_count,
+            args.iterations,
+        )
         if args.action == "play":
-            nt.human_play.human_play(game, None)
+            nt.human_play.human_play(game, tree)
         elif args.action == "train":
             train(filename, tree, args.episodes, args.speedo)
 

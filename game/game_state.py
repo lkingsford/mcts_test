@@ -22,8 +22,12 @@ class GameState(ABC):
         pass
 
     @abstractproperty
-    def previous_actions(self) -> list[int]:
+    def previous_actions(self) -> list[typing.Union[int, tuple[int, ...]]]:
         pass
+
+    @property
+    def next_automated(self) -> bool:
+        return False
 
 
 GameStateType = typing.TypeVar("GameStateType", bound=GameState, covariant=True)
