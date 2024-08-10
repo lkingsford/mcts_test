@@ -35,9 +35,9 @@ def human_play(game: nt.game.NtGame, tree):
             while action == None:
                 proposed_action_raw = input("(N)o Thanks or (T)ake:")
                 proposed_action_cleaned = proposed_action_raw.strip().upper()
-                if proposed_action_raw == "N" or "":
+                if proposed_action_cleaned == "N" or "":
                     action = nt.game.ACTION_NO_THANKS
-                elif proposed_action_raw == "T":
+                elif proposed_action_cleaned == "T":
                     action = nt.game.ACTION_TAKE
                 else:
                     print("✖️")

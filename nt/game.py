@@ -23,10 +23,13 @@ class NtState(GameState):
         # cost is worth it
         self.next_player_id = next_player_id
         self.last_player_id = last_player_id
-        self.cards = np.zeros(35)
+        self.cards = np.zeros(36)
+        self.cards[0] = -1
+        self.cards[1] = -1
+        self.cards[2] = -1
+        self.card_on_board = None
         self.chips = np.zeros(PLAYER_COUNT)
         self.chips_on_board = 0
-        self.card_on_board = 0
         self._winner = -1
 
     @property
@@ -81,21 +84,22 @@ class NtGame(Game):
         return self._state
 
     def act(self, action: int) -> "NtState":
+        self._state.last_player_id = self._state.next_player_id
         if action == ACTION_NO_THANKS:
             self._state.chips[self._state.player_id] -= 1
             self._state.chips_on_board += 1
             # Not checking for invalid
         elif action == ACTION_TAKE:
-            self._state.chips[self._state.player_id] += 1
+            self._state.chips[self._state.player_id] += self._state.chips_on_board
             self._state.cards[self._state.card_on_board] = self._state.player_id + 1
             self._state.card_on_board = None
-            self._state.chips_on_board = None
-            self._state.next_player_id = self._state.player_id + 1 % PLAYER_COUNT + 1
+            self._state.chips_on_board = 0
             if self._state.cards_remaining() == 0:
                 scores = np.array([self.score_player(i) for i in range(PLAYER_COUNT)])
-                self._winner = np.argmax(scores)
+                self._state._winner = np.argmax(scores)
         else:
             raise ValueError("Invalid action")
+        self._state.next_player_id = (self._state.player_id + 1) % PLAYER_COUNT
         return self._state
 
     def non_player_act(self) -> tuple[list[int], "NtState"]:
@@ -113,7 +117,7 @@ class NtGame(Game):
         return self._state
 
     def score_player(self, player_id: int) -> int:
-        cards_held = np.sort(np.where(self._state.cards == player_id + 1))
+        cards_held = np.sort(np.where(self._state.cards == player_id + 1))[0]
         score = 0
         last_card = None
         for card in cards_held:
