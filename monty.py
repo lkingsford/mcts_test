@@ -7,6 +7,8 @@ import threading
 import time
 import c4.game
 import c4.human_play
+import nt.game
+import nt.human_play
 import mcts.tree
 
 LOGGER = logging.getLogger(__name__)
@@ -63,6 +65,7 @@ def speedo(tree: mcts.tree.Tree, stop_event: threading.Event):
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("game", choices=["c4", "nt"], help="Game to play/train")
     parser.add_argument(
         "action",
         choices=["play", "train"],
@@ -87,8 +90,8 @@ def main():
     parser.add_argument(
         "-f",
         "--filename",
-        default="saved_model.pkl",
-        help="Filename to use for saving/loading model (default: saved_model.pkl)",
+        help="Filename to use for saving/loading model (default: [gamename].pkl)",
+        nargs="?",
     )
     parser.add_argument(
         "-v",
@@ -130,14 +133,26 @@ def main():
     logger.setLevel(max(logging.ERROR - args.verbose * 10, logging.DEBUG))
     logging.getLogger(__name__).debug("Parsed arguments: %s", args)
 
-    game = c4.game.Game()
-    tree = mcts.tree.Tree(
-        args.filename, c4.game.GameState, c4.game.Game, game.state, 2, args.iterations
-    )
-    if args.action == "play":
-        c4.human_play.human_play(game, tree)
-    elif args.action == "train":
-        train(args.filename, tree, args.episodes, args.speedo)
+    filename = args.filename or f"{args.game}.pkl"
+    # Not fantastic structure here, but will do for now
+    if args.game == "c4":
+        game = c4.game.Game()
+        tree = mcts.tree.Tree(
+            filename, c4.game.GameState, c4.game.Game, game.state, 2, args.iterations
+        )
+        if args.action == "play":
+            c4.human_play.human_play(game, tree)
+        elif args.action == "train":
+            train(filename, tree, args.episodes, args.speedo)
+    elif args.game == "nt":
+        game = nt.game.NtGame()
+        # tree = mcts.tree.Tree(
+        #    filename, nt.game.NtState, nt.game.NtGame, game.state, 2, args.iterations
+        # )
+        if args.action == "play":
+            nt.human_play.human_play(game, None)
+        elif args.action == "train":
+            train(filename, tree, args.episodes, args.speedo)
 
 
 if __name__ == "__main__":

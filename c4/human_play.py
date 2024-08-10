@@ -1,7 +1,7 @@
 def human_play(game, tree):
     done = False
+    game.debug_print()
     while not done:
-        game.debug_print()
         print("--------")
         print("01234567")
         if game.state.next_player_id == 0:

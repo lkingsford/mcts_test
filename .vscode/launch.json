@@ -5,28 +5,57 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python Debugger: c4",
+            "name": "Python Debugger: monty",
             "type": "debugpy",
             "request": "launch",
-            "program": "c4.py",
+            "program": "monty.py",
             "console": "integratedTerminal"
         },
         {
-            "name": "Python Debugger: c4 min train",
+            "name": "Python Debugger: monty c4 min train",
             "type": "debugpy",
             "request": "launch",
-            "program": "c4.py",
+            "program": "monty.py",
             "console": "integratedTerminal",
             "args": [
+                "c4",
                 "train",
                 "-e",
                 "100",
                 "-i",
                 "100",
-                "-f",
-                "e100i100.sqlite",
                 "-vvvv"
             ]
-        }
+        },
+        {
+            "name": "Python Debugger: monty nt min train",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "monty.py",
+            "console": "integratedTerminal",
+            "args": [
+                "nt",
+                "train",
+                "-e",
+                "10",
+                "-i",
+                "10",
+                "-vvvv"
+            ]
+        },
+        {
+            "name": "Python Debugger: monty c4 play",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "monty.py",
+            "console": "integratedTerminal",
+            "args": [
+                "c4",
+                "play",
+                "-i",
+                "10",
+                "-vvvv"
+            ]
+        },
     ]
 }
