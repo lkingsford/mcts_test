@@ -2,3 +2,4 @@ env
 *.keras
 *.pyc
 *.sqlite*
+remote_profiles/*

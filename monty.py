@@ -6,35 +6,10 @@ import logging
 import threading
 import time
 import c4.game
+import c4.human_play
 import mcts.tree
 
 LOGGER = logging.getLogger(__name__)
-
-
-def human_play(game, tree):
-    done = False
-    while not done:
-        game.debug_print()
-        print("--------")
-        print("01234567")
-        if game.state.next_player_id == 0:
-            action = None
-            while action == None:
-                try:
-                    proposed_action = int(input("Enter your action: "))
-                    if (proposed_action) in game.state.permitted_actions:
-                        action = int(proposed_action)
-                    else:
-                        print("✖️")
-                except ValueError:
-                    print("✖️")
-        else:
-            action = tree.act(game.state)
-        next_state = game.act(action)
-        state = next_state
-        game.debug_print()
-        done = next_state.winner != -1
-    tree.to_disk()
 
 
 def train(filename, tree: mcts.tree.Tree, episodes: int, use_speedo: bool):
@@ -160,7 +135,7 @@ def main():
         args.filename, c4.game.GameState, c4.game.Game, game.state, 2, args.iterations
     )
     if args.action == "play":
-        human_play(game, tree)
+        c4.human_play.human_play(game, tree)
     elif args.action == "train":
         train(args.filename, tree, args.episodes, args.speedo)
 
