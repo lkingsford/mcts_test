@@ -4,8 +4,8 @@ import nt.game
 
 def human_play(game: nt.game.NtGame, tree):
     done = False
-    state = game.initialize_game()
     human_player_id = random.randint(0, game.player_count + 1)
+    state = game.state
     while not done:
         node = tree.get_node(state)
         actions, state = game.non_player_act()
@@ -19,7 +19,7 @@ def human_play(game: nt.game.NtGame, tree):
             player_cards_str = "".join(player_cards)
             player_info = (
                 str(player)
-                + (">" if player == state.player_id else " ")
+                + (">" if player == state.next_player_id else " ")
                 + player_cards_str
                 + " - "
                 + str(state.chips[player])

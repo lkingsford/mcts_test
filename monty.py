@@ -146,6 +146,7 @@ def main():
             train(filename, tree, args.episodes, args.speedo)
     elif args.game == "nt":
         game = nt.game.NtGame()
+        game.initialize_game()
         tree = mcts.tree.Tree(
             filename,
             nt.game.NtState,

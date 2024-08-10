@@ -118,6 +118,7 @@ class Node:
                 self._state = game.apply_non_player_acts(self.action)
             else:
                 self._state = game.act(self.action)
+            assert not isinstance(self._state.previous_actions[-1], np.int64)
             return self._state
 
     def child_ucb(self, constant):
@@ -137,6 +138,7 @@ class Node:
             for action in np.argsort(self.child_ucb(constant))[::-1]
             if action in permitted_actions and action in self.children
         ]
+        LOGGER.debug("-> %s", best_picks)
         return best_picks
 
     def back_propogate(self, value_d: list[int]):
@@ -164,7 +166,7 @@ class Node:
 
 class RootNode(Node):
     def __init__(self, state: GameState, game_class: callable):
-        super().__init__(0, 255, state, game_class, None, 0, 0, True)
+        super().__init__(0, 255, state.copy(), game_class, None, 0, 0, True)
         self._visit_count = 1
         self._value_estimate = 0
 

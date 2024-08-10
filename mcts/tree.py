@@ -80,7 +80,7 @@ class Tree:
         return best_pick[0]
 
     def selection(self, node: "Node") -> Optional["Node"]:
-        LOGGER.debug("Selection checking %d (%s)", node.action)
+        LOGGER.debug("Selection checking %s ", str(node.action))
         self.total_select_inspections += 1
 
         order = node.best_pick(self.constant, node.state.permitted_actions)
@@ -115,8 +115,11 @@ class Tree:
         while state.winner == -1:
             # TODO: Generalize Action Selection so can make not just random
             action = random.choice(state.permitted_actions)
-            LOGGER.debug("Action: %d", action)
-            state = game.act(action)
+            LOGGER.debug("Action: %s", str(action))
+            if state.next_automated:
+                state = game.apply_non_player_acts(action)
+            else:
+                state = game.act(action)
 
         if node.parent:
             # TODO: This shouldn't be done here. Constructor maybe?

@@ -15,7 +15,7 @@ ACTION_TAKE = 2
 
 class NtState(GameState):
     def __init__(
-        self, next_player_id, last_player_id, previous_actions, last_automated=False
+        self, next_player_id, last_player_id, previous_actions, next_automated=False
     ):
         # Technically, only cards 3 to 35 are there - but memory
         # cost is worth it
@@ -29,16 +29,20 @@ class NtState(GameState):
         self.chips = np.zeros(PLAYER_COUNT)
         self.chips_on_board = 0
         self._winner = -1
-        self._previous_actions = previous_actions
-        self.last_automated = last_automated
+        self._previous_actions = previous_actions.copy()
+        self._next_automated = next_automated
 
     @property
     def player_id(self):
-        return self.last_player_id if not self.last_automated else None
+        return self.last_player_id
 
     @property
     def next_automated(self):
-        return self.last_automated
+        return self._next_automated
+
+    @next_automated.setter
+    def next_automated(self, value):
+        self._next_automated = value
 
     @property
     def permitted_actions(self):
@@ -75,7 +79,7 @@ class NtState(GameState):
             self.next_player_id,
             self.last_player_id,
             self.previous_actions,
-            self.last_automated,
+            self.next_automated,
         )
         copy_state.cards = self.cards.copy()
         copy_state.card_on_board = self.card_on_board
@@ -117,13 +121,15 @@ class NtGame(Game):
 
     def act(self, action: int) -> "NtState":
         self._state.last_player_id = self._state.next_player_id
-        self._state.last_automated = False
+        self._state.add_action(action)
         if action == ACTION_NO_THANKS:
             self._state.chips[self._state.player_id] -= 1
             self._state.chips_on_board += 1
             self._state.next_player_id = (self._state.player_id + 1) % PLAYER_COUNT
+            self._state.next_automated = False
             # Not checking for invalid
         elif action == ACTION_TAKE:
+            self._state.next_automated = True
             self._state.chips[self._state.player_id] += self._state.chips_on_board
             self._state.cards[self._state.card_on_board] = self._state.player_id + 1
             self._state.card_on_board = None
@@ -131,6 +137,9 @@ class NtGame(Game):
             if self._state.cards_remaining() == 0:
                 scores = np.array([self.score_player(i) for i in range(PLAYER_COUNT)])
                 self._state._winner = np.argmax(scores)
+        elif action == 255:
+            # First action in the game
+            pass
         else:
             raise ValueError("Invalid action")
         return self._state
@@ -145,10 +154,12 @@ class NtGame(Game):
         return ((card,), self._state)
 
     def apply_non_player_acts(self, actions: tuple[int, ...]) -> "NtState":
-        self._state.last_automated = True
         assert len(actions) == 1
+        assert self._state.next_automated
+        self._state.next_automated = False
         self._state.card_on_board = actions[0]
-        self._state.previous_actions.append(actions)
+        assert isinstance(actions, tuple)
+        self._state.add_action(actions)
         return self._state
 
     def score_player(self, player_id: int) -> int:
