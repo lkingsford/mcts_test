@@ -1,14 +1,15 @@
 from abc import ABC, abstractmethod, abstractproperty
 import copy
+from hashlib import sha256
 import sqlite3
 import typing
 
 
 class GameState(ABC):
-
-    @abstractmethod
     def hash(self) -> str:
-        pass
+        hash_object = sha256()
+        hash_object.update(str(tuple(self.previous_actions)).encode())
+        return hash_object.hexdigest()
 
     @abstractproperty
     def player_id(self) -> int:
@@ -23,7 +24,7 @@ class GameState(ABC):
         pass
 
     @abstractproperty
-    def previous_actions(self) -> list[typing.Union[int, tuple[int, ...]]]:
+    def previous_actions(self) -> list[typing.Hashable]:
         pass
 
     @property

@@ -54,6 +54,9 @@ class Tree:
         # Slow for late game
         node = self.root
         for action in state.previous_actions:
+            if node.leaf:
+                # Risk with lower iterations
+                return node
             node = node.children.get(action)
         return node
 
@@ -101,6 +104,10 @@ class Tree:
         LOGGER.debug("## Expansion")
         LOGGER.debug("Expanding node %s", str(node.action))
         state = node.state
+        if node.child_visit_count is None:
+            node.child_visit_count = np.zeros(len(state.permitted_actions))
+        if node.child_value is None:
+            node.child_value = np.zeros(len(state.permitted_actions))
         for action in state.permitted_actions:
             if action in node.children:
                 continue
