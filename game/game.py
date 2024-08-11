@@ -23,8 +23,8 @@ class Game(ABC):
         """
         Perform a non-player action on the current state
         """
-        if "_state" in self.__dict__:
-            return (tuple(), getattr(self, "_state"))
+        if "state" in self.__dict__:
+            return (tuple(), getattr(self, "state"))
         else:
             raise NotImplementedError
 

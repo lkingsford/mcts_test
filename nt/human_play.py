@@ -56,4 +56,4 @@ def human_play(game: nt.game.NtGame, tree):
     print("Scores")
     for player in range(game.player_count):
         print(f"Player {player}: {game.score_player(player)}")
-    # tree.to_disk()
+    tree.to_disk()
