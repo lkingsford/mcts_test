@@ -28,9 +28,6 @@ class GameState(game.game_state.GameState):
         self._permitted_actions = permitted_actions
         self._previous_actions = previous_actions
 
-        # return sha256(bytes(self.previous_actions)).hexdigest()
-        return "".join([str(action) for action in self._previous_actions])
-
     def copy(self) -> "GameState":
         return GameState(
             self.next_player_id,

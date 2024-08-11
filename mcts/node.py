@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 import logging
-from typing import Optional
+from typing import Optional, OrderedDict
 import math
 import pickle
 import numpy as np
@@ -42,22 +42,18 @@ class Node:
         state: Optional[GameState],
         game_class: GameType,
         parent: Optional["Node"],
-        value_estimate: float,
-        visit_count: int,
         leaf: bool,
     ):
         self.action = action
         self.parent = parent
-        self.value_estimate = value_estimate
-        self.visit_count = visit_count
         self._player_id = player_id
         self._state = state
         self.game_class = game_class
         self.leaf = leaf
         self._constant = None
-        self.children: dict[int, "Node"] = {}
-        self.child_visit_count = np.zeros(game_class.max_action_count())
-        self.child_value = np.zeros(game_class.max_action_count())
+        self.children: OrderedDict[int, "Node"] = OrderedDict()
+        self.child_visit_count: Optional[np.array] = None
+        self.child_value: Optional[np.array] = None
         # self._temp_visit_count = np.zeros(state.max_action_count())
 
     def add_child(self, action: int, state: Optional[GameState] = None):
@@ -66,8 +62,6 @@ class Node:
             action=action,
             state=state,
             parent=self,
-            value_estimate=0,
-            visit_count=0,
             game_class=self.game_class,
             leaf=True,
         )
@@ -81,20 +75,25 @@ class Node:
             raise ValueError("State not set")
 
     @property
+    def action_index(self):
+        # And I don't like this either!
+        return list(self.parent.children.keys()).index(self.action)
+
+    @property
     def value_estimate(self):
-        return self.parent.child_value[self.action]
+        return self.parent.child_value[self.action_index]
 
     @value_estimate.setter
     def value_estimate(self, value):
-        self.parent.child_value[self.action] = value
+        self.parent.child_value[self.action_index] = value
 
     @property
     def visit_count(self):
-        return self.parent.child_visit_count[self.action]
+        return self.parent.child_visit_count[self.action_index]
 
     @visit_count.setter
     def visit_count(self, value):
-        self.parent.child_visit_count[self.action] = value
+        self.parent.child_visit_count[self.action_index] = value
 
     @property
     def parent_node_visit_count(self):
@@ -134,11 +133,10 @@ class Node:
         # Child value is never set for automated turns - so this shold
         # still work
         best_picks = [
-            action
-            for action in np.argsort(self.child_ucb(constant))[::-1]
-            if action in permitted_actions and action in self.children
+            # I don't like this!
+            list(self.children.keys())[action_idx]
+            for action_idx in np.argsort(ucbs, stable=False)[::-1]
         ]
-        LOGGER.debug("-> %s", best_picks)
         return best_picks
 
     def back_propogate(self, value_d: list[int]):
@@ -166,7 +164,7 @@ class Node:
 
 class RootNode(Node):
     def __init__(self, state: GameState, game_class: callable):
-        super().__init__(0, 255, state.copy(), game_class, None, 0, 0, True)
+        super().__init__(0, 255, state.copy(), game_class, None, True)
         self._visit_count = 1
         self._value_estimate = 0
 

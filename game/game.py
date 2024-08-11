@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Hashable, Optional
 import typing
 from game.game_state import GameState
 
@@ -19,7 +19,7 @@ class Game(ABC):
     def max_action_count(cls) -> int:
         pass
 
-    def non_player_act(self) -> tuple[tuple[int, ...], "GameState"]:
+    def non_player_act(self) -> tuple[Hashable, "GameState"]:
         """
         Perform a non-player action on the current state
         """
@@ -28,7 +28,7 @@ class Game(ABC):
         else:
             raise NotImplementedError
 
-    def apply_non_player_acts(self, actions: tuple[int, ...]) -> "GameState":
+    def apply_non_player_acts(self, actions: Hashable) -> "GameState":
         """
         Apply a sequence of non-player actions to the current state
         """
