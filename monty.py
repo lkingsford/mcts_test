@@ -7,6 +7,7 @@ import threading
 import time
 import c4.game
 import c4.human_play
+from game.game import GameType
 import nt.game
 import nt.human_play
 import mcts.tree
@@ -14,7 +15,13 @@ import mcts.tree
 LOGGER = logging.getLogger(__name__)
 
 
-def train(filename, tree: mcts.tree.Tree, episodes: int, use_speedo: bool):
+def train(
+    filename,
+    tree: mcts.tree.Tree,
+    game_class: GameType,
+    episodes: int,
+    use_speedo: bool,
+):
     if use_speedo:
         stop_event = threading.Event()
         speedo_thread = threading.Thread(target=speedo, args=(tree, stop_event))
@@ -22,9 +29,11 @@ def train(filename, tree: mcts.tree.Tree, episodes: int, use_speedo: bool):
     try:
         for episode_no in range(episodes):
             LOGGER.info("Episode %d", episode_no)
-            game = c4.game.Game()
+            game = game_class()
             while game.state.winner == -1:
-                LOGGER.debug("Playing Turn")
+                LOGGER.debug("Playing Non-Player Act")
+                game.non_player_act()
+                LOGGER.debug("Deciding/Playing Turn")
                 action = tree.act(game.state)
                 game.act(action)
 
@@ -143,7 +152,7 @@ def main():
         if args.action == "play":
             c4.human_play.human_play(game, tree)
         elif args.action == "train":
-            train(filename, tree, args.episodes, args.speedo)
+            train(filename, tree, c4.game.Game, args.episodes, args.speedo)
     elif args.game == "nt":
         game = nt.game.NtGame()
         game.initialize_game()
@@ -158,7 +167,7 @@ def main():
         if args.action == "play":
             nt.human_play.human_play(game, tree)
         elif args.action == "train":
-            train(filename, tree, args.episodes, args.speedo)
+            train(filename, tree, nt.game.NtGame, args.episodes, args.speedo)
 
 
 if __name__ == "__main__":
