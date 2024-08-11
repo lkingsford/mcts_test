@@ -136,7 +136,7 @@ class NtGame(Game):
             self._state.chips_on_board = 0
             if self._state.cards_remaining() == 0:
                 scores = np.array([self.score_player(i) for i in range(PLAYER_COUNT)])
-                self._state._winner = np.argmax(scores)
+                self._state._winner = np.argmin(scores)
         elif action == 255:
             # First action in the game
             pass
