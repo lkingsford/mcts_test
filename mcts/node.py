@@ -153,7 +153,7 @@ class Node:
 
         self.visit_count += 1
         if self.parent:
-            if not (self.state.next_automated):
+            if not (self.parent.state.next_automated):
                 self.value_estimate += value_d[self.player_id]
             self.parent.back_propogate(value_d)
 
