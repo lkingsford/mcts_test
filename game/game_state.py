@@ -36,5 +36,9 @@ class GameState(ABC):
         # Slwo, shold be overwritten
         return copy.deepcopy(self)
 
+    @property
+    def player_count(self) -> int:
+        return 2
+
 
 GameStateType = typing.TypeVar("GameStateType", bound=GameState, covariant=True)
