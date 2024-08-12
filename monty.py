@@ -34,7 +34,14 @@ def train(
                 LOGGER.debug("Playing Non-Player Act")
                 game.non_player_act()
                 LOGGER.debug("Deciding/Playing Turn")
+                time_before = time.process_time()
                 action = tree.act(game.state)
+                LOGGER.info(
+                    "Player %d: %s (%fs)",
+                    game.state.next_player_id,
+                    str(action),
+                    time.process_time() - time_before,
+                )
                 game.act(action)
 
             LOGGER.info("Winner: %d", game.state.winner)
