@@ -25,12 +25,10 @@ class Tree:
         player_count: int = 2,
         iterations: int = 1000,
         constant: float = 1.4142135623730951,
+        reward_model: Optional[callable] = None,
     ):
         self.filename = filename
         self.constant = constant
-        self.loss_estimate = -1
-        self.win_estimate = 1
-        self.draw_estimate = 0
         self.iterations = iterations
         self.player_count = player_count
         self.total_iterations = 0
@@ -38,6 +36,7 @@ class Tree:
 
         self.game_state_class = game_state_class
         self.game_class = game_class
+        self.reward_model = reward_model or Tree.RewardModels.reward_model_binary
 
         # Used for other threadabilith
         self.count_conn = None
@@ -128,14 +127,7 @@ class Tree:
             else:
                 state = game.act(action)
 
-        reward = [0] * self.player_count
-        if state.winner == -2:
-            # Draw
-            reward = [self.draw_estimate] * self.player_count
-        else:
-            reward = [self.loss_estimate] * self.player_count
-            reward[state.winner] = self.win_estimate
-
+        reward = self.reward_model(state)
         node.leaf = False
         node.back_propogate(reward)
 
@@ -145,3 +137,17 @@ class Tree:
 
     def to_disk(self):
         self.node_store.to_disk(self.filename)
+
+    class RewardModels:
+        @staticmethod
+        def reward_model_binary(state: game.game_state.GameState) -> list[float]:
+            player_count = state.player_count
+            if state.winner == -1:
+                raise ValueError("No valid reward - game not over")
+            if state.winner == -2:
+                # Draw
+                reward = [0] * player_count
+            else:
+                reward = [-1] * player_count
+                reward[state.winner] = 1
+            return reward

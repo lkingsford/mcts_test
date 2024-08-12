@@ -170,6 +170,7 @@ def main():
             game.state,
             game.player_count,
             args.iterations,
+            reward_model=nt.game.NtGame.reward_model,
         )
         if args.action == "play":
             nt.human_play.human_play(game, tree)

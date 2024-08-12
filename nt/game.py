@@ -37,6 +37,10 @@ class NtState(GameState):
         return self.last_player_id
 
     @property
+    def player_count(self):
+        return PLAYER_COUNT
+
+    @property
     def next_automated(self):
         return self._next_automated
 
@@ -87,6 +91,18 @@ class NtState(GameState):
         copy_state.chips_on_board = self.chips_on_board
         copy_state._winner = self._winner
         return copy_state
+
+    def score_player(self, player_id):
+        cards_held = np.sort(np.where(self.cards == player_id + 1))[0]
+        score = 0
+        last_card = None
+        for card in cards_held:
+            if last_card != (card - 1):
+                score += card
+            last_card = card
+        score -= self.chips[player_id]
+
+        return score
 
 
 class NtGame(Game):
@@ -163,13 +179,25 @@ class NtGame(Game):
         return self._state
 
     def score_player(self, player_id: int) -> int:
-        cards_held = np.sort(np.where(self._state.cards == player_id + 1))[0]
-        score = 0
-        last_card = None
-        for card in cards_held:
-            if last_card != (card - 1):
-                score += card
-            last_card = card
-        score -= self._state.chips[player_id]
+        return self.state.score_player(player_id)
 
-        return score
+    @staticmethod
+    def reward_model(state: "NtState") -> list[float]:
+        player_count = state.player_count
+        if state.winner == -1:
+            raise ValueError("No valid reward - game not over")
+        if state.winner == -2:
+            # Draw
+            reward = [0] * player_count
+        else:
+            # The lower the score, the better
+            # We invert the scores, and normalize them between -1 and 1
+            invert_scores = -1 * np.array(
+                [state.score_player(i) for i in range(player_count)]
+            )
+            reward = (
+                2
+                * (invert_scores - np.min(invert_scores))
+                / (np.max(invert_scores) - np.min(invert_scores))
+            ) - 1
+        return list(reward)

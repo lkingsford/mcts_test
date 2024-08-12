@@ -4,7 +4,7 @@ import nt.game
 
 def human_play(game: nt.game.NtGame, tree):
     done = False
-    human_player_id = random.randint(0, game.player_count + 1)
+    human_player_id = random.randint(0, game.player_count - 1)
     state = game.state
     while not done:
         actions, state = game.non_player_act()
@@ -52,6 +52,7 @@ def human_play(game: nt.game.NtGame, tree):
         done = state.winner != -1
 
     print("Scores")
+    rewards = game.reward_model(game.state)
     for player in range(game.player_count):
-        print(f"Player {player}: {game.score_player(player)}")
+        print(f"Player {player}: {game.score_player(player)} ({rewards[player]})")
     tree.to_disk()
