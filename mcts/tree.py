@@ -13,6 +13,7 @@ from mcts.node import Node, NodeStore, RootNode
 
 
 LOGGER = logging.getLogger(__name__)
+MAX_SELECTION_DEPTH = 5000
 
 
 class Tree:
@@ -85,17 +86,17 @@ class Tree:
         LOGGER.debug("Selection checking %s ", str(node.action))
         self.total_select_inspections += 1
 
-        order = node.best_pick(self.constant, node.state.permitted_actions)
-
-        for action in order:
-            node_to_check = node.children[action]
-            if node_to_check.leaf:
-                return node_to_check
-            else:
-                recurse_result = self.selection(node_to_check)
-                if recurse_result:
-                    return recurse_result
-
+        for _ in range(MAX_SELECTION_DEPTH):
+            order = node.best_pick(self.constant, node.state.permitted_actions)
+            for action in order:
+                node_to_check = node.children.get(action)
+                if node_to_check:
+                    if node_to_check.leaf:
+                        return node_to_check
+                    else:
+                        node = node_to_check
+                        break
+        LOGGER.warning("Failed to select within MAX_SELECTION_DEPTH")
         return None
 
     def expansion(self, node: "Node"):
