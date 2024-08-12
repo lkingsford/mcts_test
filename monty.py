@@ -106,7 +106,7 @@ def main():
     parser.add_argument(
         "-f",
         "--filename",
-        help="Filename to use for saving/loading model (default: [gamename].pkl)",
+        help="Save/load model from filename",
         nargs="?",
     )
     parser.add_argument(
@@ -122,6 +122,13 @@ def main():
         action="store_true",
         default=False,
         help="Whether to display a nodes/second count (default: False)",
+    )
+    parser.add_argument(
+        "-S",
+        "--slow",
+        action="store_true",
+        default=False,
+        help="Whether to backtrace all the way to root (default: False)",
     )
 
     args = parser.parse_args()
@@ -149,33 +156,39 @@ def main():
     logger.setLevel(max(logging.ERROR - args.verbose * 10, logging.DEBUG))
     logging.getLogger(__name__).debug("Parsed arguments: %s", args)
 
-    filename = args.filename or f"{args.game}.pkl"
     # Not fantastic structure here, but will do for now
     if args.game == "c4":
         game = c4.game.Game()
         tree = mcts.tree.Tree(
-            filename, c4.game.GameState, c4.game.Game, game.state, 2, args.iterations
+            args.filename,
+            c4.game.GameState,
+            c4.game.Game,
+            game.state,
+            2,
+            args.iterations,
+            slow_mode=args.slow,
         )
         if args.action == "play":
             c4.human_play.human_play(game, tree)
         elif args.action == "train":
-            train(filename, tree, c4.game.Game, args.episodes, args.speedo)
+            train(args.filename, tree, c4.game.Game, args.episodes, args.speedo)
     elif args.game == "nt":
         game = nt.game.NtGame()
         game.initialize_game()
         tree = mcts.tree.Tree(
-            filename,
+            args.filename,
             nt.game.NtState,
             nt.game.NtGame,
             game.state,
             game.player_count,
             args.iterations,
             reward_model=nt.game.NtGame.reward_model,
+            slow_mode=args.slow,
         )
         if args.action == "play":
             nt.human_play.human_play(game, tree)
         elif args.action == "train":
-            train(filename, tree, nt.game.NtGame, args.episodes, args.speedo)
+            train(args.filename, tree, nt.game.NtGame, args.episodes, args.speedo)
 
 
 if __name__ == "__main__":

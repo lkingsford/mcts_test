@@ -139,7 +139,7 @@ class Node:
         ]
         return best_picks
 
-    def back_propogate(self, value_d: list[int]):
+    def back_propogate(self, path_to_node: list["Node"], value_d: list[int]):
         """Propogate the value
 
         Only effects this node if the player_id matches; one tree for both
@@ -151,11 +151,11 @@ class Node:
             player_id (_type_): _description_
         """
 
-        self.visit_count += 1
-        if self.parent:
-            if not (self.parent.state.next_automated):
-                self.value_estimate += value_d[self.player_id]
-            self.parent.back_propogate(value_d)
+        for node in path_to_node:
+            node.visit_count += 1
+            if node.parent:
+                if not (node.parent.state.next_automated):
+                    node.value_estimate += value_d[node.player_id]
 
     @classmethod
     def init_table(Cls, node_store: NodeStore):

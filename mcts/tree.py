@@ -19,7 +19,7 @@ MAX_SELECTION_DEPTH = 5000
 class Tree:
     def __init__(
         self,
-        filename: str,
+        filename: Optional[str],
         game_state_class: GameStateType,
         game_class: GameType,
         initial_state: game.game_state.GameState,
@@ -27,6 +27,7 @@ class Tree:
         iterations: int = 1000,
         constant: float = 1.4142135623730951,
         reward_model: Optional[callable] = None,
+        slow_mode: bool = False,
     ):
         self.filename = filename
         self.constant = constant
@@ -34,6 +35,7 @@ class Tree:
         self.player_count = player_count
         self.total_iterations = 0
         self.total_select_inspections = 0
+        self.slow_mode = slow_mode
 
         self.game_state_class = game_state_class
         self.game_class = game_class
@@ -42,12 +44,14 @@ class Tree:
         # Used for other threadabilith
         self.count_conn = None
 
-        if os.path.exists(filename):
+        self.filename = filename
+        if filename and os.path.exists(filename):
             self.node_store = NodeStore.from_disk(filename)
             self.root = self.node_store.root
         else:
             self.root = RootNode(initial_state, game_class)
             self.node_store = NodeStore(self.root)
+
         self.expansion(self.root)
 
     def get_node(self, state: game.game_state.GameState) -> Node:
@@ -72,32 +76,40 @@ class Tree:
             LOGGER.debug("---------------------")
             LOGGER.debug("Iteration %d", iteration)
             LOGGER.debug("## Selection")
-            node = self.selection(current_action_node)
-            if node:
+            path_to_selected_node = self.selection(current_action_node)
+            if len(path_to_selected_node) > 0:
+                node = path_to_selected_node[-1]
                 self.expansion(node)
-                self.play_out(node)
+                self.play_out(path_to_selected_node)
 
         best_pick = current_action_node.best_pick(
             self.constant, state.permitted_actions
         )
         return best_pick[0]
 
-    def selection(self, node: "Node") -> Optional["Node"]:
+    def selection(self, node: "Node") -> list["Node"]:
         LOGGER.debug("Selection checking %s ", str(node.action))
         self.total_select_inspections += 1
-
+        path = [node]
+        if self.slow_mode:
+            backtrace_node = node
+            while backtrace_node.parent:
+                backtrace_node = backtrace_node.parent
+                path.insert(0, backtrace_node)
         for _ in range(MAX_SELECTION_DEPTH):
             order = node.best_pick(self.constant, node.state.permitted_actions)
             for action in order:
                 node_to_check = node.children.get(action)
                 if node_to_check:
                     if node_to_check.leaf:
-                        return node_to_check
+                        path.append(node_to_check)
+                        return path
                     else:
                         node = node_to_check
+                        path.append(node)
                         break
         LOGGER.warning("Failed to select within MAX_SELECTION_DEPTH")
-        return None
+        return path
 
     def expansion(self, node: "Node"):
         # Create nodes for all legal actions
@@ -115,8 +127,9 @@ class Tree:
 
         node.leaf = False
 
-    def play_out(self, node: "Node"):
+    def play_out(self, path_to_node: list["Node"]):
         LOGGER.debug("## Play Out")
+        node = path_to_node[-1]
         state = node.state
         game = self.game_class.from_state(state)
         while state.winner == -1:
@@ -130,14 +143,16 @@ class Tree:
 
         reward = self.reward_model(state)
         node.leaf = False
-        node.back_propogate(reward)
+        node.back_propogate(path_to_node, reward)
 
     def node_count(self):
         # Creates a new conn, because it's not thread safe
         return self.node_store.count()
 
     def to_disk(self):
-        self.node_store.to_disk(self.filename)
+        if self.filename:
+
+            self.node_store.to_disk(self.filename)
 
     class RewardModels:
         @staticmethod
