@@ -7,9 +7,7 @@ def human_play(game: nt.game.NtGame, tree):
     human_player_id = random.randint(0, game.player_count + 1)
     state = game.state
     while not done:
-        node = tree.get_node(state)
         actions, state = game.non_player_act()
-        node.children[actions] = tree.get_node(state)
         print("--------")
         for player in range(game.player_count):
             player_cards = [
