@@ -32,8 +32,8 @@ class Game(ABC):
         """
         Apply a sequence of non-player actions to the current state
         """
-        if "_state" in self.__dict__:
-            return getattr(self, "_state")
+        if "state" in self.__dict__:
+            return getattr(self, "state")
         else:
             raise NotImplementedError
 

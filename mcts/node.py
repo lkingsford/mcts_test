@@ -54,6 +54,7 @@ class Node:
         self.children: OrderedDict[int, "Node"] = OrderedDict()
         self.child_visit_count: Optional[np.array] = None
         self.child_value: Optional[np.array] = None
+        self._parent_state = None
         # self._temp_visit_count = np.zeros(state.max_action_count())
 
     def add_child(self, action: int, state: Optional[GameState] = None):
@@ -97,7 +98,9 @@ class Node:
 
     @property
     def parent_node_visit_count(self):
-        return self.parent.visit_count
+        if self.parent:
+            return self.parent.visit_count
+        return 1
 
     @property
     def hash(self):
@@ -112,12 +115,12 @@ class Node:
             return self._state
         else:
             # Not sure if I'm comfortable this being in a property
-            game = self.game_class.from_state(self.parent.state)
-            if self.parent.state.next_automated:
+            game = self.game_class.from_state(self._parent_state or self.parent.state)
+            # This is getting too complicated
+            if (self.parent and self.parent.state.next_automated) or self._parent_state:
                 self._state = game.apply_non_player_acts(self.action)
             else:
                 self._state = game.act(self.action)
-            assert not isinstance(self._state.previous_actions[-1], np.int64)
             return self._state
 
     def child_ucb(self, constant):
@@ -165,6 +168,8 @@ class Node:
 class RootNode(Node):
     def __init__(self, state: GameState, game_class: callable):
         super().__init__(0, 255, state.copy(), game_class, None, True)
+        # You be very careful here - screwing around with any additional
+        # values might screw up reroot. Check first.
         self._visit_count = 1
         self._value_estimate = 0
 

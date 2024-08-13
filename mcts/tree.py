@@ -11,7 +11,6 @@ from game.game_state import GameStateType
 from game.game import GameType
 from mcts.node import Node, NodeStore, RootNode
 
-
 LOGGER = logging.getLogger(__name__)
 MAX_SELECTION_DEPTH = 5000
 
@@ -23,23 +22,24 @@ class Tree:
         game_state_class: GameStateType,
         game_class: GameType,
         initial_state: game.game_state.GameState,
-        player_count: int = 2,
         iterations: int = 1000,
         constant: float = 1.4142135623730951,
         reward_model: Optional[callable] = None,
         slow_mode: bool = False,
+        unload_after_play: bool = False,
     ):
         self.filename = filename
         self.constant = constant
         self.iterations = iterations
-        self.player_count = player_count
+        self.player_count = initial_state.player_count
         self.total_iterations = 0
         self.total_select_inspections = 0
         self.slow_mode = slow_mode
-
+        self.unload_after_play = unload_after_play
         self.game_state_class = game_state_class
         self.game_class = game_class
         self.reward_model = reward_model or Tree.RewardModels.reward_model_binary
+        self._actions_unloaded = 0
 
         # Used for other threadabilith
         self.count_conn = None
@@ -50,22 +50,59 @@ class Tree:
             self.root = self.node_store.root
         else:
             self.root = RootNode(initial_state, game_class)
-            self.node_store = NodeStore(self.root)
+            if filename:
+                self.node_store = NodeStore(self.root)
 
         self.expansion(self.root)
+
+    def new_root(self, state: game.game_state.GameState) -> RootNode:
+        self.root = RootNode(state, self.game_class)
+        self.expansion(self.root)
+        self._actions_unloaded = 0
+        return self.root
 
     def get_node(self, state: game.game_state.GameState) -> Node:
         # Slow for late game
         node = self.root
-        for action in state.previous_actions:
+        for action in state.previous_actions[self._actions_unloaded :]:
             if node.leaf:
                 # Risk with lower iterations
                 return node
             node = node.children.get(action)
         return node
 
+    def reroot(self, node):
+        if node is self.root:
+            return
+        LOGGER.debug("Rerooting")
+
+        visit_count = node.visit_count
+        value_estimate = node.value_estimate
+
+        temp_node = node
+        self._actions_unloaded += 1
+        while temp_node.parent and temp_node.parent is not self.root:
+            self._actions_unloaded += 1
+            temp_node = temp_node.parent
+
+        # Oh - this is _bad_. I should not be doing this.
+        # But... it's also actually kind of elegant, if brittle.
+        node.__class__ = RootNode
+        # OK - dragons are passed by.
+        node.visit_count = visit_count
+        # parent_node_visit_count is set by visit_count too
+        node._value_estimate = value_estimate
+        if node.parent:
+            node._parent_state = node.parent.state
+        node.parent = None
+
+        self.root = node
+
     def act(self, state: game.game_state.GameState) -> int:
         current_action_node = self.get_node(state)
+        if self.unload_after_play:
+            self.reroot(current_action_node)
+
         self.expansion(current_action_node)
 
         iteration = 0

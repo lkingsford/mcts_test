@@ -5,6 +5,7 @@ import argparse
 import logging
 import threading
 import time
+import gc
 import c4.game
 import c4.human_play
 from game.game import GameType
@@ -28,9 +29,14 @@ def train(
         speedo_thread.start()
     try:
         for episode_no in range(episodes):
-            LOGGER.info("Episode %d", episode_no)
             game = game_class()
+            if tree.unload_after_play:
+                tree.new_root(game.state)
+
+            LOGGER.info("Episode %d", episode_no)
             while game.state.winner == -1:
+
+                LOGGER.debug("GC tracked objects: %d, %d, %d", *gc.get_count())
                 LOGGER.debug("Playing Non-Player Act")
                 game.non_player_act()
                 LOGGER.debug("Deciding/Playing Turn")
@@ -130,6 +136,13 @@ def main():
         default=False,
         help="Whether to backtrace all the way to root (default: False)",
     )
+    parser.add_argument(
+        "-up",
+        "--unload-played",
+        action="store_true",
+        default=False,
+        help="Whether to unload the tree before the turn after playing a turn",
+    )
 
     args = parser.parse_args()
 
@@ -156,39 +169,37 @@ def main():
     logger.setLevel(max(logging.ERROR - args.verbose * 10, logging.DEBUG))
     logging.getLogger(__name__).debug("Parsed arguments: %s", args)
 
-    # Not fantastic structure here, but will do for now
+    state_class = None
+    game_class = None
     if args.game == "c4":
-        game = c4.game.Game()
-        tree = mcts.tree.Tree(
-            args.filename,
-            c4.game.GameState,
-            c4.game.Game,
-            game.state,
-            2,
-            args.iterations,
-            slow_mode=args.slow,
-        )
-        if args.action == "play":
-            c4.human_play.human_play(game, tree)
-        elif args.action == "train":
-            train(args.filename, tree, c4.game.Game, args.episodes, args.speedo)
+        state_class = c4.game.GameState
+        game_class = c4.game.Game
+        human_play = c4.human_play.human_play
+        game = game_class()
     elif args.game == "nt":
-        game = nt.game.NtGame()
-        game.initialize_game()
-        tree = mcts.tree.Tree(
-            args.filename,
-            nt.game.NtState,
-            nt.game.NtGame,
-            game.state,
-            game.player_count,
-            args.iterations,
-            reward_model=nt.game.NtGame.reward_model,
-            slow_mode=args.slow,
-        )
-        if args.action == "play":
-            nt.human_play.human_play(game, tree)
-        elif args.action == "train":
-            train(args.filename, tree, nt.game.NtGame, args.episodes, args.speedo)
+        state_class = nt.game.NtState
+        game_class = nt.game.NtGame
+        human_play = nt.human_play.human_play
+        game = game_class()
+
+    if state_class is None:
+        raise ValueError("Unknown game type")
+    game = game_class()
+
+    tree = mcts.tree.Tree(
+        args.filename,
+        state_class,
+        game_class,
+        game.state,
+        args.iterations,
+        reward_model=getattr(game_class, "reward_model", None),
+        slow_mode=args.slow,
+        unload_after_play=args.unload_played,
+    )
+    if args.action == "play":
+        human_play(game, tree)
+    elif args.action == "train":
+        train(args.filename, tree, game_class, args.episodes, args.speedo)
 
 
 if __name__ == "__main__":

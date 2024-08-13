@@ -1,8 +1,9 @@
 import random
 import nt.game
+import mcts.tree
 
 
-def human_play(game: nt.game.NtGame, tree):
+def human_play(game: nt.game.NtGame, tree: mcts.tree.Tree):
     done = False
     human_player_id = random.randint(0, game.player_count - 1)
     state = game.state
