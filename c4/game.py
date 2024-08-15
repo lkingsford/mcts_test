@@ -3,11 +3,69 @@ from dataclasses import dataclass
 from typing import Optional
 import logging
 import numpy as np
+from numba import jit
 import game.game
 import game.game_state
 
 
 LOGGER = logging.getLogger(__name__)
+
+
+@jit
+def check_for_win(board) -> Optional[int]:
+    # Board representation is 0 for empty to allow tighter memory packing
+    # As a result, need to subtract one to match player ids
+    # Check horizontal win
+    for row in board:
+        for ix in range(0, 4):
+            winner = row[ix] == row[ix + 1] == row[ix + 2] == row[ix + 3] != 0
+            if winner:
+                return row[ix] - 1
+
+    # Check vertical win
+    for iy in range(0, 5):
+        for ix in range(0, 8):
+            winner = (
+                board[iy][ix]
+                == board[iy + 1][ix]
+                == board[iy + 2][ix]
+                == board[iy + 3][ix]
+                != 0
+            )
+            if winner:
+                return board[iy][ix] - 1
+
+    # Check for \ win
+    for iy in range(0, 5):
+        for ix in range(0, 4):
+            winner = (
+                board[iy][ix]
+                == board[iy + 1][ix + 1]
+                == board[iy + 2][ix + 2]
+                == board[iy + 3][ix + 3]
+                != 0
+            )
+            if winner:
+                return board[iy][ix] - 1
+
+    # Check for / win
+    for iy in range(0, 5):
+        for ix in range(4, 8):
+            winner = (
+                board[iy][ix]
+                == board[iy + 1][ix - 1]
+                == board[iy + 2][ix - 2]
+                == board[iy + 3][ix - 3]
+                != 0
+            )
+            if winner:
+                return board[iy][ix] - 1
+
+    stalemate: bool = not np.any(np.equal(board, 0))
+    if stalemate:
+        return -2
+
+    return -1
 
 
 class GameState(game.game_state.GameState):
@@ -106,61 +164,7 @@ class Game(game.game.Game):
 
         self.state.permitted_actions = [ix for ix in range(8) if board[0][ix] == 0]
 
-        # Board representation is 0 for empty to allow tighter memory packing
-        # As a result, need to subtract one to match player ids
-        # Check horizontal win
-        for row in board:
-            for ix in range(0, 4):
-                winner = row[ix] == row[ix + 1] == row[ix + 2] == row[ix + 3] != 0
-                if winner:
-                    self.state.winner = row[ix] - 1
-                    return self.state
-
-        # Check vertical win
-        for iy in range(0, 5):
-            for ix in range(0, 8):
-                winner = (
-                    board[iy][ix]
-                    == board[iy + 1][ix]
-                    == board[iy + 2][ix]
-                    == board[iy + 3][ix]
-                    != 0
-                )
-                if winner:
-                    self.state.winner = board[iy][ix] - 1
-                    return self.state
-
-        # Check for \ win
-        for iy in range(0, 5):
-            for ix in range(0, 4):
-                winner = (
-                    board[iy][ix]
-                    == board[iy + 1][ix + 1]
-                    == board[iy + 2][ix + 2]
-                    == board[iy + 3][ix + 3]
-                    != 0
-                )
-                if winner:
-                    self.state.winner = board[iy][ix] - 1
-                    return self.state
-
-        for iy in range(0, 5):
-            for ix in range(4, 8):
-                winner = (
-                    board[iy][ix]
-                    == board[iy + 1][ix - 1]
-                    == board[iy + 2][ix - 2]
-                    == board[iy + 3][ix - 3]
-                    != 0
-                )
-                if winner:
-                    self.state.winner = board[iy][ix] - 1
-                    return self.state
-
-        stalemate = not (any([any([cell == 0 for cell in row]) for row in board]))
-
-        if stalemate:
-            self.state.winner = -2
+        self.state.winner = check_for_win(board)
 
         return self.state
 
