@@ -41,9 +41,6 @@ class Tree:
         self.reward_model = reward_model or Tree.RewardModels.reward_model_binary
         self._actions_unloaded = 0
 
-        # Used for other threadabilith
-        self.count_conn = None
-
         self.filename = filename
         if filename and os.path.exists(filename):
             self.node_store = NodeStore.from_disk(filename)
@@ -98,8 +95,9 @@ class Tree:
 
         self.root = node
 
-    def act(self, state: game.game_state.GameState) -> int:
-        current_action_node = self.get_node(state)
+    def _process_turn(
+        self, current_action_node: Node, state: game.game_state.GameState
+    ):
         if self.unload_after_play:
             self.reroot(current_action_node)
 
@@ -119,9 +117,11 @@ class Tree:
                 self.expansion(node)
                 self.play_out(path_to_selected_node)
 
-        best_pick = current_action_node.best_pick(
-            self.constant, state.permitted_actions
-        )
+    def act(self, state: game.game_state.GameState) -> int:
+        current_action_node = self.get_node(state)
+        self._process_turn(current_action_node, state)
+
+        best_pick = current_action_node.best_pick(self.constant)
         return best_pick[0]
 
     def selection(self, node: "Node") -> list["Node"]:
@@ -134,7 +134,7 @@ class Tree:
                 backtrace_node = backtrace_node.parent
                 path.insert(0, backtrace_node)
         for _ in range(MAX_SELECTION_DEPTH):
-            order = node.best_pick(self.constant, node.state.permitted_actions)
+            order = node.best_pick(self.constant)
             for action in order:
                 node_to_check = node.children.get(action)
                 if node_to_check:

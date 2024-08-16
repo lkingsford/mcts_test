@@ -129,7 +129,7 @@ class Node:
         u = np.sqrt(np.log(self.parent_node_visit_count) / (1 + self.child_visit_count))
         return q + u
 
-    def best_pick(self, constant, permitted_actions) -> list[int]:
+    def best_pick(self, constant) -> list[int]:
         ucbs = self.child_ucb(constant)
         LOGGER.debug("Best pick from: %s", (ucbs.tolist()))
         # Not sure how fast this list comprehension is

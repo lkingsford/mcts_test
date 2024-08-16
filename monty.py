@@ -28,9 +28,10 @@ def train(
         speedo_thread = threading.Thread(target=speedo, args=(tree, stop_event))
         speedo_thread.start()
     try:
+        tree = None
         for episode_no in range(episodes):
             game = game_class()
-            if tree.unload_after_play:
+            if not tree or tree.unload_after_play:
                 tree.new_root(game.state)
 
             LOGGER.info("Episode %d", episode_no)
@@ -107,7 +108,7 @@ def main():
         "--iterations",
         type=int,
         default=100,
-        help="Number of iterations to run (default: 100)",
+        help="Number of iterations to run per process (default: 100)",
     )
     parser.add_argument(
         "-f",
@@ -142,6 +143,9 @@ def main():
         action="store_true",
         default=False,
         help="Whether to unload the tree before the turn after playing a turn",
+    )
+    parser.add_argument(
+        "-j", "--jobs", type=int, default=1, help="Number of parallel processes"
     )
 
     args = parser.parse_args()
