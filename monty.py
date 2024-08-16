@@ -12,6 +12,7 @@ from game.game import GameType
 import nt.game
 import nt.human_play
 import mcts.tree
+import mcts.multi_tree
 
 LOGGER = logging.getLogger(__name__)
 
@@ -28,10 +29,9 @@ def train(
         speedo_thread = threading.Thread(target=speedo, args=(tree, stop_event))
         speedo_thread.start()
     try:
-        tree = None
         for episode_no in range(episodes):
             game = game_class()
-            if not tree or tree.unload_after_play:
+            if tree.unload_after_play:
                 tree.new_root(game.state)
 
             LOGGER.info("Episode %d", episode_no)
@@ -165,7 +165,8 @@ def main():
     # Configure logging
     logger = logging.getLogger()
     formatter = logging.Formatter(
-        "[%(asctime)s][%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+        "[%(asctime)s][%(levelname)s][%(process)d] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
     handler = logging.StreamHandler()
     handler.setFormatter(formatter)
@@ -190,16 +191,29 @@ def main():
         raise ValueError("Unknown game type")
     game = game_class()
 
-    tree = mcts.tree.Tree(
-        args.filename,
-        state_class,
-        game_class,
-        game.state,
-        args.iterations,
-        reward_model=getattr(game_class, "reward_model", None),
-        slow_mode=args.slow,
-        unload_after_play=args.unload_played,
-    )
+    if args.jobs == -1:
+        tree = mcts.tree.Tree(
+            args.filename,
+            state_class,
+            game_class,
+            game.state,
+            args.iterations,
+            reward_model=getattr(game_class, "reward_model", None),
+            slow_mode=args.slow,
+            unload_after_play=args.unload_played,
+        )
+    else:
+        tree = mcts.multi_tree.MultiTree(
+            args.filename,
+            state_class,
+            game_class,
+            game.state,
+            args.iterations,
+            reward_model=getattr(game_class, "reward_model", None),
+            slow_mode=args.slow,
+            unload_after_play=args.unload_played,
+            jobs=args.jobs,
+        )
     if args.action == "play":
         human_play(game, tree)
     elif args.action == "train":
