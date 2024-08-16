@@ -61,29 +61,26 @@ def train(
 
 def speedo(tree: mcts.tree.Tree, stop_event: threading.Event):
     start_time = time.perf_counter()
-    node_count = tree.node_count()
     iterations_count = tree.total_iterations
     selection_count = tree.total_select_inspections
+    t_old = start_time
     while not stop_event.is_set():
         t = time.perf_counter() - start_time
-        new_node_count = tree.node_count()
-        LOGGER.info("Nodes/second: %f", (float(new_node_count) - float(node_count)) / t)
-        node_count = new_node_count
-
         new_iterations_count = tree.total_iterations
         LOGGER.info(
             "Iterations/second: %f",
-            (float(new_iterations_count) - float(iterations_count)) / t,
+            (float(new_iterations_count) - float(iterations_count)) / (t - t_old),
         )
         iterations_count = new_iterations_count
 
         new_selection_count = tree.total_select_inspections
         LOGGER.info(
             "Selections/second: %f",
-            (float(new_selection_count) - float(selection_count)) / t,
+            (float(new_selection_count) - float(selection_count)) / (t - t_old),
         )
         selection_count = new_selection_count
         stop_event.wait(2)
+        t_old = t
 
 
 def main():
@@ -191,7 +188,7 @@ def main():
         raise ValueError("Unknown game type")
     game = game_class()
 
-    if args.jobs == -1:
+    if args.jobs == 1:
         tree = mcts.tree.Tree(
             args.filename,
             state_class,
