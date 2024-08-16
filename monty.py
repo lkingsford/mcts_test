@@ -12,6 +12,7 @@ from game.game import GameType
 import nt.game
 import nt.human_play
 import mcts.tree
+import mcts.multi_tree
 
 LOGGER = logging.getLogger(__name__)
 
@@ -60,29 +61,26 @@ def train(
 
 def speedo(tree: mcts.tree.Tree, stop_event: threading.Event):
     start_time = time.perf_counter()
-    node_count = tree.node_count()
     iterations_count = tree.total_iterations
     selection_count = tree.total_select_inspections
+    t_old = start_time
     while not stop_event.is_set():
         t = time.perf_counter() - start_time
-        new_node_count = tree.node_count()
-        LOGGER.info("Nodes/second: %f", (float(new_node_count) - float(node_count)) / t)
-        node_count = new_node_count
-
         new_iterations_count = tree.total_iterations
         LOGGER.info(
             "Iterations/second: %f",
-            (float(new_iterations_count) - float(iterations_count)) / t,
+            (float(new_iterations_count) - float(iterations_count)) / (t - t_old),
         )
         iterations_count = new_iterations_count
 
         new_selection_count = tree.total_select_inspections
         LOGGER.info(
             "Selections/second: %f",
-            (float(new_selection_count) - float(selection_count)) / t,
+            (float(new_selection_count) - float(selection_count)) / (t - t_old),
         )
         selection_count = new_selection_count
         stop_event.wait(2)
+        t_old = t
 
 
 def main():
@@ -107,7 +105,7 @@ def main():
         "--iterations",
         type=int,
         default=100,
-        help="Number of iterations to run (default: 100)",
+        help="Number of iterations to run per process (default: 100)",
     )
     parser.add_argument(
         "-f",
@@ -143,6 +141,15 @@ def main():
         default=False,
         help="Whether to unload the tree before the turn after playing a turn",
     )
+    parser.add_argument(
+        "--force-multitree",
+        action="store_true",
+        default=False,
+        help="Whether to use MultiTree instead of Tree, even if single job",
+    )
+    parser.add_argument(
+        "-j", "--jobs", type=int, default=1, help="Number of parallel processes"
+    )
 
     args = parser.parse_args()
 
@@ -161,7 +168,8 @@ def main():
     # Configure logging
     logger = logging.getLogger()
     formatter = logging.Formatter(
-        "[%(asctime)s][%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+        "[%(asctime)s][%(levelname)s][%(process)d] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
     handler = logging.StreamHandler()
     handler.setFormatter(formatter)
@@ -186,20 +194,36 @@ def main():
         raise ValueError("Unknown game type")
     game = game_class()
 
-    tree = mcts.tree.Tree(
-        args.filename,
-        state_class,
-        game_class,
-        game.state,
-        args.iterations,
-        reward_model=getattr(game_class, "reward_model", None),
-        slow_mode=args.slow,
-        unload_after_play=args.unload_played,
-    )
-    if args.action == "play":
-        human_play(game, tree)
-    elif args.action == "train":
-        train(args.filename, tree, game_class, args.episodes, args.speedo)
+    try:
+        if args.jobs == 1 and not args.force_multitree:
+            tree = mcts.tree.Tree(
+                args.filename,
+                state_class,
+                game_class,
+                game.state,
+                args.iterations,
+                reward_model=getattr(game_class, "reward_model", None),
+                slow_mode=args.slow,
+                unload_after_play=args.unload_played,
+            )
+        else:
+            tree = mcts.multi_tree.MultiTree(
+                args.filename,
+                state_class,
+                game_class,
+                game.state,
+                args.iterations,
+                reward_model=getattr(game_class, "reward_model", None),
+                slow_mode=args.slow,
+                unload_after_play=args.unload_played,
+                jobs=args.jobs,
+            )
+        if args.action == "play":
+            human_play(game, tree)
+        elif args.action == "train":
+            train(args.filename, tree, game_class, args.episodes, args.speedo)
+    finally:
+        tree.close()
 
 
 if __name__ == "__main__":
