@@ -66,7 +66,6 @@ class MultiTree:
         self.unload_after_play = unload_after_play
         self.jobs = jobs
         self.total_iterations = 0
-        self.total_select_inspections = 0
         self.setup_processes()
 
     def setup_processes(self):
