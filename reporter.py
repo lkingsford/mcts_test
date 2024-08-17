@@ -35,13 +35,17 @@ def main():
     for file in os.listdir(args.folder):
         if file.endswith(".json"):
             with open(os.path.join(args.folder, file)) as f:
-                play_report = json.load(f)
+                raw_play_report = json.load(f)
                 for report in reports_to_run:
+                    play_report = [
+                        reporter.report.ActionEntry(*entry) for entry in raw_play_report
+                    ]
                     report[1].ingest(play_report)
 
     for report in reports_to_run:
         print(f"# {report[0]}")
         print(report[1].report())
+        print("---\n")
 
 
 if __name__ == "__main__":
