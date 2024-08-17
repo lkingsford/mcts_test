@@ -104,6 +104,18 @@ class NtState(GameState):
 
         return score
 
+    def loggable(self) -> dict:
+        return {
+            "next_player_id": self.next_player_id,
+            "last_player_id": self.last_player_id,
+            "cards": self.cards.tolist(),
+            "card_on_board": self.card_on_board,
+            "chips": self.chips.tolist(),
+            "chips_on_board": self.chips_on_board,
+            "winner": self._winner,
+            "previous_actions": self.previous_actions,
+        }
+
 
 class NtGame(Game):
     @classmethod

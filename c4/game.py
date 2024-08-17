@@ -126,6 +126,15 @@ class GameState(game.game_state.GameState):
     def previous_actions(self, value):
         self._previous_actions = value
 
+    def loggable(self) -> dict:
+        return {
+            "next_player_id": self.next_player_id,
+            "last_player_id": self.last_player_id,
+            "board": self.board.tolist(),
+            "winner": self.winner,
+            "permitted_actions": self.permitted_actions,
+        }
+
 
 class Game(game.game.Game):
     def __init__(self, state: Optional[GameState] = None) -> None:

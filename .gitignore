@@ -3,3 +3,4 @@ env
 *.pyc
 *.sqlite*
 remote_profiles/*
+reports/*
