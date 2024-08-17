@@ -1,4 +1,4 @@
-from abc import abstractclass, abstractmethod
+from abc import ABC, abstractmethod
 from typing import NamedTuple, Optional
 
 
@@ -9,8 +9,7 @@ class ActionEntry(NamedTuple):
     memo: Optional[str]
 
 
-@abstractclass
-class Report:
+class Report(ABC):
     @abstractmethod
     def ingest(self, play_report: list[ActionEntry]):
         pass

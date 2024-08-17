@@ -12,6 +12,14 @@
             "console": "integratedTerminal"
         },
         {
+            "name": "Python Debugger: current file",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "args": "${command:pickArgs}"
+        },
+        {
             "name": "Python Debugger: monty c4 min train",
             "type": "debugpy",
             "request": "launch",
