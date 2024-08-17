@@ -40,5 +40,9 @@ class GameState(ABC):
     def player_count(self) -> int:
         return 2
 
+    @abstractmethod
+    def loggable(self) -> dict:
+        pass
+
 
 GameStateType = typing.TypeVar("GameStateType", bound=GameState, covariant=True)

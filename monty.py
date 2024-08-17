@@ -2,13 +2,18 @@
 """
 
 import argparse
+from datetime import datetime
 import logging
 import threading
 import time
 import gc
+import os
+from typing import NamedTuple, Optional
+import json
 import c4.game
 import c4.human_play
 from game.game import GameType
+from game.game_state import GameState
 import nt.game
 import nt.human_play
 import mcts.tree
@@ -17,12 +22,26 @@ import mcts.multi_tree
 LOGGER = logging.getLogger(__name__)
 
 
+class ActionLog(NamedTuple):
+    action: int
+    player_id: Optional[int]
+    state: GameState
+    memo: Optional[str]
+
+
+def save_report(folder, actions: list[ActionLog]):
+    os.makedirs(folder, exist_ok=True)
+    with open(os.path.join(folder, f"{datetime.now()}.json"), "w") as f:
+        json.dump(actions, f)
+
+
 def train(
     filename,
     tree: mcts.tree.Tree,
     game_class: GameType,
     episodes: int,
     use_speedo: bool,
+    report_folder=Optional[str],
 ):
     if use_speedo:
         stop_event = threading.Event()
@@ -35,11 +54,13 @@ def train(
                 tree.new_root(game.state)
 
             LOGGER.info("Episode %d", episode_no)
+            action_log: list[ActionLog] = []
             while game.state.winner == -1:
 
                 LOGGER.debug("GC tracked objects: %d, %d, %d", *gc.get_count())
                 LOGGER.debug("Playing Non-Player Act")
-                game.non_player_act()
+                action, state = game.non_player_act()
+                action_log.append(ActionLog(action, None, state.loggable(), None))
                 LOGGER.debug("Deciding/Playing Turn")
                 time_before = time.process_time()
                 action = tree.act(game.state)
@@ -50,6 +71,12 @@ def train(
                     time.process_time() - time_before,
                 )
                 game.act(action)
+                action_log.append(
+                    ActionLog(action, game.state.last_player_id, state.loggable(), None)
+                )
+
+            if report_folder:
+                save_report(report_folder, action_log)
 
             LOGGER.info("Winner: %d", game.state.winner)
             if episode_no % 10 == 0 or episode_no == episodes - 1:
@@ -147,6 +174,11 @@ def main():
     parser.add_argument(
         "-j", "--jobs", type=int, default=1, help="Number of parallel processes"
     )
+    parser.add_argument(
+        "-r",
+        "--reports",
+        help="Save reports to a folder",
+    )
 
     args = parser.parse_args()
 
@@ -218,7 +250,14 @@ def main():
         if args.action == "play":
             human_play(game, tree)
         elif args.action == "train":
-            train(args.filename, tree, game_class, args.episodes, args.speedo)
+            train(
+                args.filename,
+                tree,
+                game_class,
+                args.episodes,
+                args.speedo,
+                args.reports,
+            )
     finally:
         tree.close()
 
