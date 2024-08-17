@@ -7,7 +7,7 @@ import os
 import reporter.report
 
 
-def get_reports(reports):
+def get_reports(reports) -> list[tuple[str, reporter.report.Report]]:
     return_reports = []
     for report_path in reports:
         module_path, class_name = report_path.split(":")
@@ -15,11 +15,12 @@ def get_reports(reports):
             f"module.{class_name}", module_path
         )
         module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
         found_class = getattr(module, class_name)
         assert issubclass(
             found_class, reporter.report.Report
         ), f"{class_name} is not a subclass of Report"
-        return_reports.append(found_class)
+        return_reports.append((module_path, found_class()))
     return return_reports
 
 
@@ -35,12 +36,12 @@ def main():
         if file.endswith(".json"):
             with open(os.path.join(args.folder, file)) as f:
                 play_report = json.load(f)
-            for report in reports_to_run:
-                report.ingest(play_report)
+                for report in reports_to_run:
+                    report[1].ingest(play_report)
 
     for report in reports_to_run:
-        print(f"# {report.__name__}")
-        print(report.report())
+        print(f"# {report[0]}")
+        print(report[1].report())
 
 
 if __name__ == "__main__":
