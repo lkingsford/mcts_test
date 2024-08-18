@@ -37,7 +37,7 @@ def process_worker(
         state = q.get(block=True)
         node = tree.get_node(state)
         tree._process_turn(node, state)
-        ucbs = node.child_ucb(constant)
+        ucbs = node.child_ucb(0.0)
         keys = list(node.children.keys())
         result_q.put((keys, ucbs, tree.total_iterations))
 

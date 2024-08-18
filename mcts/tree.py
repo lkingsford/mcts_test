@@ -121,7 +121,7 @@ class Tree:
         current_action_node = self.get_node(state)
         self._process_turn(current_action_node, state)
 
-        best_pick = current_action_node.best_pick(self.constant)
+        best_pick = current_action_node.best_pick(0)
         return best_pick[0]
 
     def selection(self, node: "Node") -> list["Node"]:

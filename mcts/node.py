@@ -127,7 +127,7 @@ class Node:
         # q = (self.temp_visit_count + self.child_value) / (1 + self.child_visit_count)
         q = (self.child_value) / (1 + self.child_visit_count)
         u = np.sqrt(np.log(self.parent_node_visit_count) / (1 + self.child_visit_count))
-        return q + u
+        return q + constant * u
 
     def best_pick(self, constant) -> list[int]:
         ucbs = self.child_ucb(constant)
