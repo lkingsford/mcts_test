@@ -10,6 +10,8 @@ import gc
 import os
 from typing import NamedTuple, Optional
 import json
+
+import numpy as np
 import c4.game
 import c4.human_play
 from game.game import GameType
@@ -29,10 +31,32 @@ class ActionLog(NamedTuple):
     memo: Optional[str]
 
 
+class ActionLogEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, int):
+            return obj
+        if isinstance(obj, tuple):
+            return tuple(self.default(e) for e in obj)
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        if isinstance(obj, ActionLog):
+            return {
+                "action": super(ActionLogEncoder, self).default(obj.action),
+                "player_id": obj.player_id,
+                "state": obj.state,
+                "memo": obj.memo,
+            }
+        return super(ActionLogEncoder, self).default(obj)
+
+
 def save_report(folder, actions: list[ActionLog]):
     os.makedirs(folder, exist_ok=True)
     with open(os.path.join(folder, f"{datetime.now()}.json"), "w") as f:
-        json.dump(actions, f)
+        json.dump(actions, f, cls=ActionLogEncoder)
 
 
 def train(
