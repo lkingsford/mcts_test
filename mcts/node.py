@@ -127,7 +127,11 @@ class Node:
         # q = (self.temp_visit_count + self.child_value) / (1 + self.child_visit_count)
         q = (self.child_value) / (1 + self.child_visit_count)
         u = np.sqrt(np.log(self.parent_node_visit_count) / (1 + self.child_visit_count))
-        return q + constant * u
+        # Using a tiny random number to avoid division by zero and to vary results
+        # where (particularly earlier in the iterations) there are multiple identical
+        # values
+        r = np.random.rand(len(q)) * 1e-6
+        return q + constant * u + r
 
     def best_pick(self, constant) -> list[int]:
         ucbs = self.child_ucb(constant)
