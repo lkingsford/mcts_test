@@ -33,13 +33,16 @@ def process_worker(
         slow_mode,
         unload_after_play,
     )
+    last_iterations = 0
     while True:
         state = q.get(block=True)
         node = tree.get_node(state)
         tree._process_turn(node, state)
         ucbs = node.child_ucb(0.0)
         keys = list(node.children.keys())
-        result_q.put((keys, ucbs, tree.total_iterations))
+        new_iterations = tree.total_iterations
+        result_q.put((keys, ucbs, new_iterations - last_iterations))
+        last_iterations = new_iterations
 
 
 class MultiTree:
@@ -110,7 +113,7 @@ class MultiTree:
 
         # Result is keys, ucbs, total_iterations
         keys_ucbs = [self.result_q.get() for _ in range(self.jobs)]
-        self.total_iterations = sum([k[2] for k in keys_ucbs])
+        self.total_iterations += sum([k[2] for k in keys_ucbs])
         return MultiTree.best_action(state.permitted_actions, keys_ucbs)
 
     def new_root(self, state):
