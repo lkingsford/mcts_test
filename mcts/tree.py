@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import json
 import typing
 from typing import Optional
 import os
@@ -112,10 +113,13 @@ class Tree:
             LOGGER.debug("Iteration %d", iteration)
             LOGGER.debug("## Selection")
             path_to_selected_node = self.selection(current_action_node)
-            if len(path_to_selected_node) > 0:
+            if path_to_selected_node:
                 node = path_to_selected_node[-1]
                 self.expansion(node)
                 self.play_out(path_to_selected_node)
+            else:
+                LOGGER.debug("Tree probably exhausted")
+                break
 
     def act(self, state: game.game_state.GameState) -> int:
         current_action_node = self.get_node(state)
@@ -146,7 +150,9 @@ class Tree:
                         path.append(node)
                         break
         LOGGER.warning("Failed to select within MAX_SELECTION_DEPTH")
-        return path
+        # This normally means that the tree has been fully explored
+        LOGGER.warning("%s", json.dumps(node.state.loggable()))
+        return None
 
     def expansion(self, node: "Node"):
         # Create nodes for all legal actions
