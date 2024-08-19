@@ -3,7 +3,9 @@
 """Collate reports for a game into maybe useful data"""
 
 import argparse
+import fnmatch
 import importlib.util
+import inspect
 import json
 import logging
 import os
@@ -32,11 +34,20 @@ def get_reports(reports) -> list[tuple[str, reporter.report.Report]]:
         )
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        found_class = getattr(module, class_name)
-        assert issubclass(
-            found_class, reporter.report.Report
-        ), f"{class_name} is not a subclass of Report"
-        return_reports.append((module_path, found_class()))
+
+        matching_classes = []
+        for name in dir(module):
+            if fnmatch.fnmatch(name, class_name):
+                found_class = getattr(module, name)
+                if (
+                    inspect.isclass(found_class)
+                    and issubclass(found_class, reporter.report.Report)
+                    and found_class is not reporter.report.Report
+                ):
+                    matching_classes.append((name, found_class()))
+
+        LOGGER.warning(f"No classes in {module_path} match {class_name}")
+        return_reports.extend(matching_classes)
     return return_reports
 
 
