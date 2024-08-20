@@ -18,6 +18,8 @@ from game.game import GameType
 from game.game_state import GameState
 import nt.game
 import nt.human_play
+import ebr.game
+import ebr.human_play
 import mcts.tree
 import mcts.multi_tree
 
@@ -133,7 +135,7 @@ def speedo(tree: mcts.tree.Tree, stop_event: threading.Event):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("game", choices=["c4", "nt"], help="Game to play/train")
+    parser.add_argument("game", choices=["c4", "nt", "ebr"], help="Game to play/train")
     parser.add_argument(
         "action",
         choices=["play", "train"],
@@ -242,10 +244,14 @@ def main():
         game_class = nt.game.NtGame
         human_play = nt.human_play.human_play
         game = game_class()
+    elif args.game == "ebr":
+        state_class = ebr.game.GameState
+        game_class = ebr.game.EbrGame
+        human_play = ebr.human_play.human_play
+        game = game_class(player_count=4)
 
     if state_class is None:
         raise ValueError("Unknown game type")
-    game = game_class()
 
     try:
         if args.jobs == 1 and not args.force_multitree:

@@ -31,7 +31,6 @@ class GameState(ABC):
     def next_automated(self) -> bool:
         return False
 
-    @property
     def copy(self) -> "GameState":
         # Slwo, shold be overwritten
         return copy.deepcopy(self)
