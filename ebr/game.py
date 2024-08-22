@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import NamedTuple, Optional, Hashable
+from typing import NamedTuple, Optional, Hashable, Union
 import numpy as np
 import copy
 from game import Game, GameState
@@ -292,6 +292,10 @@ class AuctionState(NamedTuple):
     passed: list[Player]
 
 
+class NormalTurnState(NamedTuple):
+    action_removed: Optional[int]
+
+
 @dataclass
 class CompanyState:
     treasury: int
@@ -318,7 +322,7 @@ class EbrGameState(GameState):
         stage: Optional[InTurnStage],
         last_dividend_was: int,
         end_game_trigger_states: dict[EndGameReason, bool],
-        phase_state: AuctionState,
+        phase_state: Union[AuctionState, NormalTurnState],
         track: list[Track],
         resources: list[Coordinate],
         private_track_remaining: int,
@@ -371,12 +375,15 @@ class EbrGameState(GameState):
                 )
             )
         if self.stage == InTurnStage.TAKE_ACTION:
+            assert isinstance(self.phase_state, NormalTurnState)
             return list(
                 set(
                     [
                         ACTION_CUBE_SPACES[idx].value
                         for idx in range(len(self.action_cubes))
                         if not self.action_cubes[idx]
+                        and not ACTION_CUBE_SPACES[idx].value
+                        == self.phase_state.action_removed
                     ]
                 )
             )
@@ -397,6 +404,11 @@ class EbrGameState(GameState):
     def previous_actions(self) -> list[int]:
         return self._previous_actions
 
+    def shares_remaining(self, company) -> int:
+        return COMPANIES[company].stock_available - len(
+            self.company_state[company].shareholders
+        )
+
 
 class EbrGame(Game):
     def __init__(
@@ -406,9 +418,6 @@ class EbrGame(Game):
             self.state = self.initialize_game(player_count)
         else:
             self.state = state.copy()
-
-    def valid_actions(self, state):
-        return []
 
     def get_state(self) -> EbrGameState:
         return self.state
@@ -441,13 +450,16 @@ class EbrGame(Game):
             and self.state.player_cash[player] > bid
         ]
 
-        if len(still_in_auction) == 1:
+        # Looks too complex - but if anybody has bidded and there is only one
+        # player, or if nobody has bidded and everybody passed, then end auction
+        if (self.state.phase_state.current_bid > 0 and len(still_in_auction) == 1) or (
+            len(self.state.phase_state.passed) == self.state.player_count
+        ):
             # End auction
-            self.state.company_state[co].shareholders.append(still_in_auction[0])
+            winner = self.state.phase_state.current_bidder
+            self.state.company_state[co].shareholders.append(winner)
             self.state.company_state[co].treasury += self.state.phase_state.current_bid
-            self.state.player_cash[
-                self.state.phase_state.current_bidder
-            ] -= self.state.phase_state.current_bid
+            self.state.player_cash[winner] -= self.state.phase_state.current_bid
             if self.state.phase == Phase.AUCTION:
                 self.end_turn()
             else:
@@ -484,6 +496,7 @@ class EbrGame(Game):
             ]
             self.state.action_cubes[relevant_spaces[0]] = False
             self.state.stage = InTurnStage.TAKE_ACTION
+            self.state.phase_state = NormalTurnState(action_removed=action)
             return
 
         if self.state.stage == InTurnStage.TAKE_ACTION:
