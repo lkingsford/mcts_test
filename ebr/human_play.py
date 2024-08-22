@@ -13,6 +13,7 @@ def print_holdings(game_state: EbrGameState):
 
 def human_play(game: EbrGame, tree):
     done = False
+    print_terrain(TERRAIN, game)
     while not done:
         print("--------")
         # Check for which player here

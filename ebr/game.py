@@ -101,13 +101,14 @@ IPO_ORDER = [COMPANY.LW, COMPANY.TMLC, COMPANY.EBRC, COMPANY.GT]
 
 class Track(NamedTuple):
     location: Coordinate
-    owner: COMPANY
+    owner: Optional[COMPANY]
+    narrow: bool = False
 
 
 INITIAL_TRACK = [
-    Track((4, 9), COMPANY.LW),
-    Track((4, 9), COMPANY.TMLC),
-    Track((5, 3), COMPANY.EBRC),
+    Track((9, 4), COMPANY.LW),
+    Track((9, 4), COMPANY.TMLC),
+    Track((3, 5), COMPANY.EBRC),
 ]
 
 
@@ -471,7 +472,7 @@ class EbrGame(Game):
         self.state.active_player = self.state.next_player
         self.state.phase_state = None
         self.state.phase = Phase.NORMAL_TURN
-        self.state.stage = None
+        self.state.stage = InTurnStage.REMOVE_CUBES
         self.winner = self.update_end_game()
 
     def update_end_game(self):
@@ -548,19 +549,47 @@ def get_symbol(x, y, terrain):
     base_symbol = SYMBOL[terrain]
     if (x, y) in FEATURES:
         if FEATURES[(x, y)][0] == "WATER1":
-            return " " + base_symbol + "\033[34m~ "
+            return "" + base_symbol + "\033[34m~"
         if FEATURES[(x, y)][0] == "WATER2":
-            return " " + base_symbol + "\033[34m≈ "
-    return " " + base_symbol + "  "
+            return "" + base_symbol + "\033[34m≈"
+    return "" + base_symbol + " "
+
+
+def get_track_symbol(x, y, game):
+    track = [t for t in game.state.track if t and t.location == (x, y)]
+    eb = any([t.owner == COMPANY.EBRC for t in track])
+    lw = any([t.owner == COMPANY.LW for t in track])
+    tmlc = any([t.owner == COMPANY.TMLC for t in track])
+    narrow = any([t.narrow for t in track])
+    symbol = eb + 2 * lw + 4 * tmlc + 8 * narrow
+    return "\033[0m" + str(symbol) if symbol else " "
+
+
+def get_resource_symbol(x, y, game):
+    resources = len([1 for r in game.state.resources if r == (x, y)])
+    return f"\033[35m{resources}" if resources else " "
 
 
 # Terrain is staggered - a row looks like
 # 0   2   4
 #   1   3   5
-def print_terrain(board):
+def print_terrain(board, game: EbrGame):
+    print("   " + " ".join([f"{x:2}" for x in range(13)]))
     for y, row in enumerate(board):
-        upper_row = [get_symbol(x, y + 1, row[x - 1]) for x in range(1, len(row), 2)]
-        lower_row = [get_symbol(x, y + 1, row[x - 1]) for x in range(2, len(row), 2)]
-        print("".join(upper_row))
-        print("  " + "".join(lower_row))
+        upper_row = [
+            "   "
+            + get_track_symbol(x, y + 1, game)
+            + get_symbol(x, y + 1, row[x - 1])
+            + get_resource_symbol(x, y, game)
+            for x in range(1, len(row), 2)
+        ]
+        lower_row = [
+            "   "
+            + get_track_symbol(x, y + 1, game)
+            + get_symbol(x, y + 1, row[x - 1])
+            + get_resource_symbol(x, y, game)
+            for x in range(2, len(row), 2)
+        ]
+        print(f"{y + 1:2}" + "".join(upper_row))
+        print(f"{y + 1:2}    " + "".join(lower_row))
     print("\033[0m")
