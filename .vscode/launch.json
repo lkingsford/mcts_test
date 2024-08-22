@@ -79,5 +79,20 @@
                 "-vvvv"
             ]
         },
+        {
+            "name": "Python Debugger: monty ebr play",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "monty.py",
+            "console": "integratedTerminal",
+            "args": [
+                "ebr",
+                "play",
+                "-i",
+                "10",
+                "-vvvv"
+            ]
+        },
+        ,
     ]
 }
