@@ -11,6 +11,14 @@ def print_holdings(game_state: EbrGameState):
         print(holding_string)
 
 
+def print_cube_display(game_state: EbrGameState):
+    for i, cube in enumerate(game_state.action_cubes):
+        print(
+            f"{ACTION_CUBE_SPACES[i].value}: {ACTION_CUBE_SPACES[i].name} "
+            + ("[#]" if cube else "[ ]")
+        )
+
+
 def human_play(game: EbrGame, tree):
     done = False
     print_terrain(TERRAIN, game)
@@ -33,5 +41,15 @@ def human_play(game: EbrGame, tree):
                 if int(bid) in game.state.permitted_actions:
                     action = int(bid)
             else:
-                pass
+                if game.state.stage == InTurnStage.REMOVE_CUBES:
+                    print_cube_display(game.state)
+                    cube_to_remove = input("Cube to remove: ")
+                    if int(cube_to_remove) in game.state.permitted_actions:
+                        action = int(cube_to_remove)
+                elif game.state.stage == InTurnStage.TAKE_ACTION:
+                    print_cube_display(game.state)
+                    cube_to_add = input("Cube to add: ")
+                    if int(cube_to_add) in game.state.permitted_actions:
+                        action = int(cube_to_add)
+
         game.act(action)

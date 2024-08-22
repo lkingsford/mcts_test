@@ -360,6 +360,27 @@ class EbrGameState(GameState):
                     self.player_cash[self.next_player] + 1,
                 )
             )
+        if self.stage == InTurnStage.REMOVE_CUBES:
+            return list(
+                set(
+                    [
+                        ACTION_CUBE_SPACES[idx].value
+                        for idx in range(len(self.action_cubes))
+                        if self.action_cubes[idx]
+                    ]
+                )
+            )
+        if self.stage == InTurnStage.TAKE_ACTION:
+            return list(
+                set(
+                    [
+                        ACTION_CUBE_SPACES[idx].value
+                        for idx in range(len(self.action_cubes))
+                        if not self.action_cubes[idx]
+                    ]
+                )
+            )
+
         return []
 
     def winner(self) -> int:
@@ -455,7 +476,24 @@ class EbrGame(Game):
             )
 
     def game_action(self, action):
-        pass
+        if self.state.stage == InTurnStage.REMOVE_CUBES:
+            relevant_spaces = [
+                i
+                for i, space in enumerate(ACTION_CUBE_SPACES)
+                if space.value == action and self.state.action_cubes[i]
+            ]
+            self.state.action_cubes[relevant_spaces[0]] = False
+            self.state.stage = InTurnStage.TAKE_ACTION
+            return
+
+        if self.state.stage == InTurnStage.TAKE_ACTION:
+            relevant_spaces = [
+                i
+                for i, space in enumerate(ACTION_CUBE_SPACES)
+                if space.value == action and not self.state.action_cubes[i]
+            ]
+            self.state.action_cubes[relevant_spaces[0]] = True
+            return
 
     def max_action_count(cls) -> int:
         return 255
