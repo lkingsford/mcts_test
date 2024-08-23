@@ -233,6 +233,11 @@ class InTurnStage(Enum):
     TAKE_ACTION = 1
     BUILDING_TRACK = 2
     TAKE_RESOURCES = 3
+    CHOOSE_BOND_CO = 4
+    CHOOSE_BOND_CERT = 5
+    CHOOSE_AUCTION = 6
+    CHOOSE_MERGE_PUBLIC = 7
+    CHOOSE_MERGE_PRIVATE = 8
 
 
 class Action(Enum):
@@ -489,24 +494,69 @@ class EbrGame(Game):
 
     def game_action(self, action):
         if self.state.stage == InTurnStage.REMOVE_CUBES:
-            relevant_spaces = [
-                i
-                for i, space in enumerate(ACTION_CUBE_SPACES)
-                if space.value == action and self.state.action_cubes[i]
-            ]
-            self.state.action_cubes[relevant_spaces[0]] = False
-            self.state.stage = InTurnStage.TAKE_ACTION
-            self.state.phase_state = NormalTurnState(action_removed=action)
+            self.remove_cube()
             return
+        elif self.state.stage == InTurnStage.TAKE_ACTION:
+            self.take_action()
+            return
+        elif self.state.stage == InTurnStage.CHOOSE_BOND_CO:
+            self.choose_bond_co(action)
+            return
+        elif self.state.stage == InTurnStage.CHOOSE_BOND_CERT:
+            self.issue_bond(action)
+        elif self.state.stage == InTurnStage.CHOOSE_MERGE_PUBLIC:
+            self.choose_public_merge(action)
+        elif self.state.stage == InTurnStage.CHOOSE_MERGE_PRIVATE:
+            self.choose_private_merge(action)
+        elif self.state.stage == InTurnStage.CHOOSE_AUCTION:
+            self.start_auction(action)
 
-        if self.state.stage == InTurnStage.TAKE_ACTION:
-            relevant_spaces = [
-                i
-                for i, space in enumerate(ACTION_CUBE_SPACES)
-                if space.value == action and not self.state.action_cubes[i]
-            ]
-            self.state.action_cubes[relevant_spaces[0]] = True
-            return
+    def remove_cube(self, action):
+        relevant_spaces = [
+            i
+            for i, space in enumerate(ACTION_CUBE_SPACES)
+            if space.value == action and self.state.action_cubes[i]
+        ]
+        self.state.action_cubes[relevant_spaces[0]] = False
+        self.state.stage = InTurnStage.TAKE_ACTION
+        self.state.phase_state = NormalTurnState(action_removed=action)
+        return
+
+    def take_action(self, action):
+        relevant_spaces = [
+            i
+            for i, space in enumerate(ACTION_CUBE_SPACES)
+            if space.value == action and not self.state.action_cubes[i]
+        ]
+        self.state.action_cubes[relevant_spaces[0]] = True
+        if action == Action.ISSUE_BOND:
+            self.state.stage = InTurnStage.CHOOSE_BOND
+        elif action == Action.AUCTION_SHARE:
+            self.state.stage = InTurnStage.CHOOSE_AUCTION
+        elif action == Action.PAY_DIVIDEND:
+            self.pay_dividends()
+        elif action == Action.MERGE:
+            self.state.stage = InTurnStage.CHOOSE_MERGE
+        elif action == Action.TAKE_RESOURCES:
+            self.state.stage == InTurnStage.TAKE_RESOURCES
+
+    def pay_dividends(self):
+        pass
+
+    def choose_bond_co(self, action):
+        pass
+
+    def issue_bond(self, action):
+        pass
+
+    def choose_public_merge(self, action):
+        pass
+
+    def choose_private_merge(self, action):
+        pass
+
+    def start_auction(self, action):
+        pass
 
     def max_action_count(cls) -> int:
         return 255
