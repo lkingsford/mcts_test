@@ -14,6 +14,11 @@ class Game(ABC):
     def from_state(cls, state: GameState) -> "Game":
         pass
 
+    @classmethod
+    @abstractmethod
+    def max_action_count(cls) -> int:
+        pass
+
     def non_player_act(self) -> tuple[Hashable, "GameState"]:
         """
         Perform a non-player action on the current state
