@@ -1,8 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-import math
 from typing import NamedTuple, Optional, Hashable, Union
-import itertools
 import numpy as np
 import copy
 from game import Game, GameState
@@ -99,7 +97,6 @@ class COMPANY(Enum):
 
 
 IPO_ORDER = [COMPANY.LW, COMPANY.TMLC, COMPANY.EBRC, COMPANY.GT]
-MAX_BUILDS = 2
 
 
 class Track(NamedTuple):
@@ -112,7 +109,6 @@ INITIAL_TRACK = [
     Track((9, 4), COMPANY.LW),
     Track((9, 4), COMPANY.TMLC),
     Track((3, 5), COMPANY.EBRC),
-    Track((2, 4), None, True),
 ]
 
 
@@ -131,7 +127,7 @@ COMPANIES = {
     COMPANY.EBRC: CompanyDetails(
         "EB",
         "Emu Bay Railway Company",
-        (3, 5),
+        (5, 3),
         False,
         5,
         10,
@@ -141,7 +137,7 @@ COMPANIES = {
     COMPANY.LW: CompanyDetails(
         "LW",
         "Launceston & Western",
-        (9, 4),
+        (4, 9),
         False,
         3,
         10,
@@ -151,7 +147,7 @@ COMPANIES = {
     COMPANY.TMLC: CompanyDetails(
         "TMLC",
         "Tasmania Main Line",
-        (9, 4),
+        (4, 9),
         False,
         4,
         10,
@@ -161,7 +157,7 @@ COMPANIES = {
     COMPANY.GT: CompanyDetails(
         "GT",
         "Grubbs Tramway",
-        (2, 4),
+        None,
         True,
         1,
         None,
@@ -201,7 +197,7 @@ COMPANIES = {
 }
 
 
-def get_neighbors(x, y) -> list[Coordinate]:
+def get_neighbors(x, y) -> list[tuple]:
     # Game is a hex map with pointy sides
     # Each row is top, bottom, top, bottom
     #
@@ -232,6 +228,18 @@ class EndGameReason(Enum):
     RESOURCE = 3
 
 
+class InTurnStage(Enum):
+    REMOVE_CUBES = 0
+    TAKE_ACTION = 1
+    BUILDING_TRACK = 2
+    TAKE_RESOURCES = 3
+    CHOOSE_BOND_CO = 4
+    CHOOSE_BOND_CERT = 5
+    CHOOSE_AUCTION = 6
+    CHOOSE_MERGE_PUBLIC = 7
+    CHOOSE_MERGE_PRIVATE = 8
+
+
 class Action(Enum):
     BUILD_TRACK = 0
     AUCTION_SHARE = 1
@@ -256,15 +264,6 @@ ACTION_CUBE_SPACES = [
 ]
 
 ACTION_CUBE_STARTING_SPACE_IDXS = [5, 6, 7, 10]
-
-
-class FullAction(NamedTuple):
-    action_to_remove: Action
-    action_to_take: Action
-    company: Optional[COMPANY]
-    company_2: Optional[COMPANY]
-    bond_idx: Optional[int]
-    coords: Optional[tuple[Coordinate, ...]]
 
 
 class Bond(NamedTuple):
@@ -309,7 +308,6 @@ class CompanyState:
     privates_owned: list[COMPANY]
     owned_by: Optional[COMPANY]
     shareholders: list[Player]
-    private_hq: Optional[Coordinate]
     # need to add rev and debt (coupons)
 
 
@@ -326,6 +324,7 @@ class EbrGameState(GameState):
         action_cubes: list[bool],
         player_cash: list[int],
         phase: Phase,
+        stage: Optional[InTurnStage],
         last_dividend_was: int,
         end_game_trigger_states: dict[EndGameReason, bool],
         phase_state: Union[AuctionState, NormalTurnState],
@@ -344,6 +343,7 @@ class EbrGameState(GameState):
         self.last_dividend_was = last_dividend_was
         self.end_game_trigger_states = copy.deepcopy(end_game_trigger_states)
         self.phase = phase
+        self.stage = stage
         self.phase_state = phase_state
         self.track = copy.deepcopy(track)
         self.private_track_remaining = private_track_remaining
@@ -363,124 +363,37 @@ class EbrGameState(GameState):
     @property
     def permitted_actions(self) -> list[int]:
         if self.phase == Phase.INITIAL_AUCTION or self.phase == Phase.AUCTION:
-            assert isinstance(self.phase_state, AuctionState)
             return [0] + list(
                 range(
                     self.phase_state.current_bid + 1,
                     self.player_cash[self.next_player] + 1,
                 )
             )
-
-        removable_actions = set(
-            [
-                ACTION_CUBE_SPACES[idx].value
-                for idx in range(len(self.action_cubes))
-                if self.action_cubes[idx]
-            ]
-        )
-        actions_with_spaces = set(
-            [
-                ACTION_CUBE_SPACES[idx].value
-                for idx in range(len(self.action_cubes))
-                if not self.action_cubes[idx] and not ACTION_CUBE_SPACES[idx].value
-            ]
-        )
-
-        auctions_available = [
-            company
-            for company in COMPANY
-            if len(self.company_state[company].shareholders)
-            < COMPANIES[company].stock_available
-        ]
-        bonds_available = [i for i, _ in enumerate(self.bonds_remaining)]
-        merge_options = self.get_current_player_merge_options()
-        track_options = self.get_current_player_track_options()
-        return []
-
-    def get_current_player_merge_options(self) -> tuple[tuple[COMPANY, COMPANY], ...]:
-        unmerged_privates = [
-            company
-            for company in COMPANY
-            if self.company_state[company].owned_by is None
-        ]
-        merge_possibilities = itertools.product(COMPANY, unmerged_privates)
-        merge_options = (
-            (company, private)
-            for company, private in merge_possibilities
-            if (
-                self.last_player in self.company_state[company].shareholders
-                or (self.last_player in self.company_state[private].shareholders)
-            )
-            and self.private_connected_to(company, private)
-        )
-        return tuple(merge_options)
-
-    def private_connected_to(self, company, private) -> bool:
-        # Check if the private is connected to any of the companies track
-        private_hq = self.company_state[private].private_hq
-        assert private_hq
-        connected_track: list[Coordinate] = get_neighbors(*private_hq)
-        visited_track = set([private_hq])
-        while len(connected_track) > 0:
-            track_coord = connected_track.pop()
-            visited_track.add(track_coord)
-            track = [t for t in self.state.track if t and t.location == track_coord]
-            if any(t for t in track if t.owner == company):
-                return True
-            if any(t.narrow for t in track):
-                connected_track.extend(
-                    [i for i in get_neighbors(*track_coord) if i not in visited_track]
+        if self.stage == InTurnStage.REMOVE_CUBES:
+            return list(
+                set(
+                    [
+                        ACTION_CUBE_SPACES[idx].value
+                        for idx in range(len(self.action_cubes))
+                        if self.action_cubes[idx]
+                    ]
                 )
-        return False
-
-    def get_current_player_track_options(self) -> tuple[tuple[Track, ...], ...]:
-        owns_shares_in = [
-            company
-            for company in COMPANY
-            if self.last_player in self.company_state[company].shareholders
-        ]
-        permitted_tracks: list[tuple[Track, ...]] = []
-        for company in owns_shares_in:
-            permitted_tracks.extend(self.get_track_options(company))
-            for private in self.company_state[company].privates_owned:
-                permitted_tracks.extend(self.get_track_options(private))
-
-        return tuple(permitted_tracks)
-
-    def get_track_options(self, company) -> list[tuple[Track, ...]]:
-        treasury = self.company_state[company].treasury
-        narrow_remaining = self.private_track_remaining
-        track_remaining = self.company_state[company].track_remaining
-
-        options: list[list[Track]] = []
-        if not COMPANIES[company].private:
-            # get regular track
-            assert track_remaining
-
-            # Build Number, Cost, Track
-            track_owned = [
-                (0, 0, track) for track in self.state.track if track.owner == company
-            ]
-            for build_number in range(min(track_remaining, MAX_BUILDS)):
-
-                pass
-        else:
-            # get narrow gauge options
-            pass
-
-        return [tuple(option) for option in options]
-
-    def get_track_cost(self, location: Coordinate, narrow: bool) -> int:
-        tracks_at_location = [
-            t for t in self.state.track if t and t.location == location
-        ]
-        terrain_type = TERRAIN[location[0] + 1][location[1] + 1]
-        if not narrow:
-            return TERRAIN_COSTS[terrain_type] + TERRAIN_COSTS[terrain_type] * len(
-                tracks_at_location
             )
-        else:
-            return math.floor(TERRAIN_COSTS[terrain_type] / 2)
+        if self.stage == InTurnStage.TAKE_ACTION:
+            assert isinstance(self.phase_state, NormalTurnState)
+            return list(
+                set(
+                    [
+                        ACTION_CUBE_SPACES[idx].value
+                        for idx in range(len(self.action_cubes))
+                        if not self.action_cubes[idx]
+                        and not ACTION_CUBE_SPACES[idx].value
+                        == self.phase_state.action_removed
+                    ]
+                )
+            )
+
+        return []
 
     def winner(self) -> int:
         pass
@@ -609,13 +522,23 @@ class EbrGame(Game):
         self.state.phase_state = NormalTurnState(action_removed=action)
         return
 
-    def place_action_cube(self, action):
+    def take_action(self, action):
         relevant_spaces = [
             i
             for i, space in enumerate(ACTION_CUBE_SPACES)
             if space.value == action and not self.state.action_cubes[i]
         ]
         self.state.action_cubes[relevant_spaces[0]] = True
+        if action == Action.ISSUE_BOND:
+            self.state.stage = InTurnStage.CHOOSE_BOND
+        elif action == Action.AUCTION_SHARE:
+            self.state.stage = InTurnStage.CHOOSE_AUCTION
+        elif action == Action.PAY_DIVIDEND:
+            self.pay_dividends()
+        elif action == Action.MERGE:
+            self.state.stage = InTurnStage.CHOOSE_MERGE
+        elif action == Action.TAKE_RESOURCES:
+            self.state.stage == InTurnStage.TAKE_RESOURCES
 
     def pay_dividends(self):
         pass
@@ -636,7 +559,7 @@ class EbrGame(Game):
         pass
 
     def max_action_count(cls) -> int:
-        return
+        return 255
 
     def from_state(cls, state: GameState) -> "Game":
         # Separate to allow abstract method to work
@@ -710,6 +633,7 @@ class EbrGame(Game):
             action_cubes=action_cubes,
             player_cash=player_cash,
             phase=phase,
+            stage=None,
             last_dividend_was=last_dividend,
             end_game_trigger_states=end_game_trigger_states,
             phase_state=auction_state,
