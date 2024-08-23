@@ -55,7 +55,6 @@ class Node:
         self.child_visit_count: Optional[np.array] = None
         self.child_value: Optional[np.array] = None
         self._parent_state = None
-        # self._temp_visit_count = np.zeros(state.max_action_count())
 
     def add_child(self, action: int, state: Optional[GameState] = None):
         self.children[action] = Node(

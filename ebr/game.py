@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
+import itertools
+import math
 from typing import NamedTuple, Optional, Hashable, Union
 import numpy as np
 import copy
@@ -109,6 +111,7 @@ INITIAL_TRACK = [
     Track((9, 4), COMPANY.LW),
     Track((9, 4), COMPANY.TMLC),
     Track((3, 5), COMPANY.EBRC),
+    Track((2, 4), None, True),
 ]
 
 
@@ -120,14 +123,14 @@ class CompanyDetails(NamedTuple):
     stock_available: int
     track_available: Optional[int]
     initial_treasury: int
-    initial_repayment: int
+    initial_interest: int
 
 
 COMPANIES = {
     COMPANY.EBRC: CompanyDetails(
         "EB",
         "Emu Bay Railway Company",
-        (5, 3),
+        (3, 5),
         False,
         5,
         10,
@@ -137,7 +140,7 @@ COMPANIES = {
     COMPANY.LW: CompanyDetails(
         "LW",
         "Launceston & Western",
-        (4, 9),
+        (9, 4),
         False,
         3,
         10,
@@ -147,7 +150,7 @@ COMPANIES = {
     COMPANY.TMLC: CompanyDetails(
         "TMLC",
         "Tasmania Main Line",
-        (4, 9),
+        (9, 4),
         False,
         4,
         10,
@@ -157,7 +160,7 @@ COMPANIES = {
     COMPANY.GT: CompanyDetails(
         "GT",
         "Grubbs Tramway",
-        None,
+        (2, 4),
         True,
         1,
         None,
@@ -197,7 +200,7 @@ COMPANIES = {
 }
 
 
-def get_neighbors(x, y) -> list[tuple]:
+def get_neighbors(x, y) -> list[Coordinate]:
     # Game is a hex map with pointy sides
     # Each row is top, bottom, top, bottom
     #
@@ -236,8 +239,10 @@ class InTurnStage(Enum):
     CHOOSE_BOND_CO = 4
     CHOOSE_BOND_CERT = 5
     CHOOSE_AUCTION = 6
-    CHOOSE_MERGE_PUBLIC = 7
-    CHOOSE_MERGE_PRIVATE = 8
+    CHOOSE_MERGE_COS = 7
+    CHOOSE_PRIVATE_HQ = 8
+    CHOOSE_TRACK_CO = 9
+    CHOOSE_TAKE_RESOURCE_CO = 10
 
 
 class Action(Enum):
@@ -264,11 +269,13 @@ ACTION_CUBE_SPACES = [
 ]
 
 ACTION_CUBE_STARTING_SPACE_IDXS = [5, 6, 7, 10]
+NO_MORE_BUILDS = (-1, -1)
+BUILD_ACTIONS = 2
 
 
 class Bond(NamedTuple):
     face_value: int
-    coupon: int
+    interest: int
 
 
 BONDS = [
@@ -298,7 +305,10 @@ class AuctionState(NamedTuple):
 
 
 class NormalTurnState(NamedTuple):
-    action_removed: Optional[int]
+    action_removed: Optional[int] = None
+    bond_co: Optional[int] = None
+    company: Optional[COMPANY] = None
+    operations: Optional[int] = 0  # Amount of builds or takes done so far
 
 
 @dataclass
@@ -308,7 +318,9 @@ class CompanyState:
     privates_owned: list[COMPANY]
     owned_by: Optional[COMPANY]
     shareholders: list[Player]
-    # need to add rev and debt (coupons)
+    interest: int = 0
+    resources_to_sell: int = 0
+    private_hq: Optional[Coordinate] = None
 
 
 class EbrGameState(GameState):
@@ -414,6 +426,67 @@ class EbrGameState(GameState):
             self.company_state[company].shareholders
         )
 
+    def get_current_player_merge_options(self) -> tuple[tuple[COMPANY, COMPANY], ...]:
+        unmerged_privates = [
+            company
+            for company in COMPANY
+            if self.company_state[company].owned_by is None
+        ]
+        merge_possibilities = itertools.product(COMPANY, unmerged_privates)
+        merge_options = (
+            (company, private)
+            for company, private in merge_possibilities
+            if (
+                self.last_player in self.company_state[company].shareholders
+                or (self.last_player in self.company_state[private].shareholders)
+            )
+            and self.private_connected_to(company, private)
+        )
+        return tuple(merge_options)
+
+    def private_connected_to(self, company, private) -> bool:
+        # Check if the private is connected to any of the companies track
+        private_hq = self.company_state[private].private_hq
+        assert private_hq
+        connected_track: list[Coordinate] = get_neighbors(*private_hq)
+        visited_track = set([private_hq])
+        while len(connected_track) > 0:
+            track_coord = connected_track.pop()
+            visited_track.add(track_coord)
+            track = [t for t in self.state.track if t and t.location == track_coord]
+            if any(t for t in track if t.owner == company):
+                return True
+            if any(t.narrow for t in track):
+                connected_track.extend(
+                    [i for i in get_neighbors(*track_coord) if i not in visited_track]
+                )
+        return False
+
+    def get_track_cost(self, location: Coordinate, narrow: bool) -> int:
+        tracks_at_location = [
+            t for t in self.state.track if t and t.location == location
+        ]
+        terrain_type = TERRAIN[location[0] + 1][location[1] + 1]
+        feature_cost = sum(
+            [FEATURE_COSTS.get(f[0], 0) for l, f in FEATURES.items() if l == location]
+        )
+
+        if not narrow:
+            return (
+                TERRAIN_COSTS[terrain_type]
+                + feature_cost
+                + TERRAIN_COSTS[terrain_type] * len(tracks_at_location)
+            )
+        else:
+            return math.floor(TERRAIN_COSTS[terrain_type] / 2)
+
+    def get_current_player_companies_held(self) -> list[COMPANY]:
+        return [
+            company
+            for company in COMPANY
+            if self.last_player in self.company_state[company].shareholders
+        ]
+
 
 class EbrGame(Game):
     def __init__(
@@ -465,6 +538,8 @@ class EbrGame(Game):
             self.state.company_state[co].shareholders.append(winner)
             self.state.company_state[co].treasury += self.state.phase_state.current_bid
             self.state.player_cash[winner] -= self.state.phase_state.current_bid
+            if COMPANIES[co].private:
+                self.expand_resources(co)
             if self.state.phase == Phase.AUCTION:
                 self.end_turn()
             else:
@@ -492,24 +567,51 @@ class EbrGame(Game):
                 [],
             )
 
+    def expand_resources(self, co):
+        coord = (
+            self.state.company_state[co].private_hq[0],
+            self.state.company_state[co].private_hq[1],
+        )
+        forest_neighbours = [
+            tile
+            for tile in get_neighbors(*coord)
+            if TERRAIN[tile[0]][tile[1]] == FOREST
+        ]
+        mountain_neighbours = [
+            tile
+            for tile in get_neighbors(*coord)
+            if TERRAIN[tile[0]][tile[1]] == MOUNTAIN
+        ]
+        for coord in forest_neighbours:
+            self.state.resources.append(coord)
+        for coord in mountain_neighbours:
+            self.state.resources.append(coord)
+            self.state.resources.append(coord)
+
     def game_action(self, action):
         if self.state.stage == InTurnStage.REMOVE_CUBES:
             self.remove_cube()
-            return
         elif self.state.stage == InTurnStage.TAKE_ACTION:
             self.take_action()
-            return
         elif self.state.stage == InTurnStage.CHOOSE_BOND_CO:
             self.choose_bond_co(action)
-            return
         elif self.state.stage == InTurnStage.CHOOSE_BOND_CERT:
             self.issue_bond(action)
-        elif self.state.stage == InTurnStage.CHOOSE_MERGE_PUBLIC:
-            self.choose_public_merge(action)
-        elif self.state.stage == InTurnStage.CHOOSE_MERGE_PRIVATE:
-            self.choose_private_merge(action)
+        elif self.state.stage == InTurnStage.CHOOSE_MERGE_COS:
+            self.choose_merge_cos(*action)
         elif self.state.stage == InTurnStage.CHOOSE_AUCTION:
             self.start_auction(action)
+        elif self.state.stage == InTurnStage.CHOOSE_PRIVATE_HQ:
+            self.choose_private_hq(action)
+        elif self.state.stage == InTurnStage.CHOOSE_TAKE_RESOURCE_CO:
+            self.choose_take_resource_co(action)
+        elif self.state.stage == InTurnStage.TAKE_RESOURCES:
+            self.take_resources(action)
+        elif self.state.stage == InTurnStage.CHOOSE_TRACK_CO:
+            self.choose_track_co(action)
+        elif self.state.stage == InTurnStage.BUILDING_TRACK:
+            self.build_track(action)
+        return
 
     def remove_cube(self, action):
         relevant_spaces = [
@@ -538,28 +640,97 @@ class EbrGame(Game):
         elif action == Action.MERGE:
             self.state.stage = InTurnStage.CHOOSE_MERGE
         elif action == Action.TAKE_RESOURCES:
-            self.state.stage == InTurnStage.TAKE_RESOURCES
+            self.state.stage == InTurnStage.CHOOSE_TAKE_RESOURCE_CO
+        elif action == Action.BUILD_TRACK:
+            self.state.stage = InTurnStage.CHOOSE_TRACK_CO
 
     def pay_dividends(self):
+        self.state.last_dividend_was += 1
+        # TODO Calculate revenue
         pass
 
     def choose_bond_co(self, action):
+        self.state.phase_state = NormalTurnState(bond_co=action)
+        self.state.stage = InTurnStage.CHOOSE_BOND_CERT
         pass
 
     def issue_bond(self, action):
-        pass
+        bond = self.state.bonds_remaining[action]
+        self.state.bonds_remaining.remove(bond)
+        assert isinstance(self.state.phase_state, NormalTurnState)
+        assert self.state.phase_state.bond_co is not None
+        company = self.state.company_state[self.state.phase_state.bond_co]
+        company.treasury += bond.face_value
+        company.interest += bond.interest
+        self.end_turn()
 
-    def choose_public_merge(self, action):
-        pass
+    def choose_merge_cos(self, co_idx, private_idx):
+        company = self.state.company_state[co_idx]
+        private = self.state.company_state[private_idx]
+        company.privates_owned.append(private)
+        private.owned_by = company
+        company.shareholders.append(private.shareholders[0])
+        private.shareholders = []
+        company.interest += private.interest
+        self.end_turn()
 
-    def choose_private_merge(self, action):
-        pass
+    def choose_take_resource_co(self, action):
+        self.state.phase_state = NormalTurnState(company=action)
+        self.state.stage = InTurnStage.TAKE_RESOURCE
+
+    def take_resources(self, action):
+        self.state.company_state[self.state.phase_state.company].resources_to_sell += 1
+        self.state.resources.remove(Coordinate(*action))
+        self.end_turn()
+
+    def choose_track_co(self, action):
+        self.state.phase_state = NormalTurnState(company=action, operations=0)
+        self.state.stage = InTurnStage.BUILD_TRACK
+
+    def build_track(self, action):
+        # This is hacky
+        if action == NO_MORE_BUILDS:
+            self.end_turn()
+
+        company = self.state.company_state[self.state.phase_state.company]
+        coord = Coordinate(*action)
+        assert isinstance(self.state.phase_state, NormalTurnState)
+        if COMPANIES[self.state.phase_state.company].private:
+            self.state.private_track_remaining -= 1
+            self.state.track.append(Track(coord, None, True))
+            track_cost = self.state.get_track_cost(coord, True)
+            if company.owned_by:
+                self.state.company_state[company.owned_by].treasury -= track_cost
+            else:
+                company.treasury -= track_cost
+        else:
+            company.track_remaining -= 1
+            self.state.track.append(Track(coord, company, False))
+            track_cost = self.state.get_track_cost(coord, False)
+            company.treasury -= track_cost
+        self.state.phase_state = NormalTurnState(
+            company=action, operations=self.state.phase_state.operations + 1
+        )
+
+        if self.state.phase_state.operations > BUILD_ACTIONS:
+            self.end_turn()
 
     def start_auction(self, action):
-        pass
+        if COMPANIES[action].private:
+            self.state.stage = InTurnStage.CHOOSE_PRIVATE_HQ
+            self.state.phase_state.company_for_auction = action
+        else:
+            self.state.phase = Phase.AUCTION
+            self.state.phase_state = AuctionState(self.state.last_player, 0, action, [])
 
-    def max_action_count(cls) -> int:
-        return 255
+    def choose_private_hq(self, action):
+        self.state.company_state[
+            self.state.phase_state.company_for_auction
+        ].private_hq = Coordinate(*action)
+        self.state.phase = Phase.AUCTION
+        self.state.phase_state = AuctionState(
+            self.state.last_player, 0, self.state.phase_state.company_for_auction, []
+        )
 
     def from_state(cls, state: GameState) -> "Game":
         # Separate to allow abstract method to work
@@ -612,6 +783,8 @@ class EbrGame(Game):
                 privates_owned=[],
                 owned_by=None,
                 shareholders=[],
+                private_hq=company.starting,
+                interest=company.initial_interest,
             )
             for key, company in COMPANIES.items()
         }
@@ -675,20 +848,20 @@ def get_resource_symbol(x, y, game):
 # 0   2   4
 #   1   3   5
 def print_terrain(board, game: EbrGame):
-    print("   " + " ".join([f"{x:2}" for x in range(13)]))
+    print("    " + "   ".join([f"{x:2}" for x in range(1, 10)]))
     for y, row in enumerate(board):
         upper_row = [
             "   "
             + get_track_symbol(x, y + 1, game)
             + get_symbol(x, y + 1, row[x - 1])
-            + get_resource_symbol(x, y, game)
+            + get_resource_symbol(x, y + 1, game)
             for x in range(1, len(row), 2)
         ]
         lower_row = [
             "   "
             + get_track_symbol(x, y + 1, game)
             + get_symbol(x, y + 1, row[x - 1])
-            + get_resource_symbol(x, y, game)
+            + get_resource_symbol(x, y + 1, game)
             for x in range(2, len(row), 2)
         ]
         print(f"{y + 1:2}" + "".join(upper_row))
