@@ -19,19 +19,23 @@ def print_cube_display(game_state: EbrGameState):
         )
 
 
+def print_companies(game_state: EbrGameState):
+    for i, company in enumerate(game_state.company_state.items()):
+        print(f"{i}: {company}")
+
+
 def human_play(game: EbrGame, tree):
     done = False
-    print_terrain(TERRAIN, game)
     while not done:
         print("--------")
         # Check for which player here
         action = None
         while action == None:
+            print_holdings(game.state)
             if (
                 game.state.phase == Phase.AUCTION
                 or game.state.phase == Phase.INITIAL_AUCTION
             ):
-                print_holdings(game.state)
                 print(
                     f"Bid for {game.state.phase_state.company_for_auction.name}: {game.state.phase_state.current_bid} ({game.state.phase_state.current_bidder})"
                 )
@@ -41,15 +45,95 @@ def human_play(game: EbrGame, tree):
                 if int(bid) in game.state.permitted_actions:
                     action = int(bid)
             else:
+                print_terrain(TERRAIN, game)
+                print_holdings(game.state)
+                print_cube_display(game.state)
+                print_companies(game.state)
                 if game.state.stage == InTurnStage.REMOVE_CUBES:
-                    print_cube_display(game.state)
                     cube_to_remove = input("Cube to remove: ")
                     if int(cube_to_remove) in game.state.permitted_actions:
                         action = int(cube_to_remove)
                 elif game.state.stage == InTurnStage.TAKE_ACTION:
-                    print_cube_display(game.state)
                     cube_to_add = input("Cube to add: ")
                     if int(cube_to_add) in game.state.permitted_actions:
                         action = int(cube_to_add)
+                elif game.state.stage == InTurnStage.BUILDING_TRACK:
+                    print_terrain(TERRAIN, game)
+                    x = None
+                    y = None
+                    while x == None or y == None:
+                        try:
+                            build_loc = input("X,Y to build track")
+                            x, y = (coord for coord in build_loc.split(","))
+                        except:
+                            pass
+                    action = (x, y)
+                elif game.state.stage == InTurnStage.CHOOSE_PRIVATE_HQ:
+                    print_terrain(TERRAIN, game)
+                    x = None
+                    y = None
+                    while x == None or y == None:
+                        try:
+                            build_loc = input("X,Y of HQ")
+                            x, y = (coord for coord in build_loc.split(","))
+                        except:
+                            pass
+                    action = (x, y)
+                elif game.state.stage == InTurnStage.TAKE_RESOURCES:
+                    print_terrain(TERRAIN, game)
+                    x = None
+                    y = None
+                    while x == None or y == None:
+                        try:
+                            take_loc = input("X,Y to take resource from")
+                            x, y = (coord for coord in build_loc.split(","))
+                        except:
+                            pass
+                    action = (x, y)
+                elif game.state.stage == InTurnStage.CHOOSE_MERGE_COS:
+                    merge_options = game.state.get_current_player_merge_options()
+                    for i, j in enumerate(merge_options):
+                        print(f"{i}: {j}")
+                    merge_option = input("Choose merge option")
+                    action = int(merge_option)
+                elif game.state.stage == InTurnStage.CHOOSE_AUCTION:
+                    print_holdings(game.state)
+                    auctions_available = [
+                        company
+                        for company in COMPANY
+                        if len(game.state.company_state[company].shareholders)
+                        < COMPANIES[company].stock_available
+                    ]
+                    for i, j in enumerate(auctions_available):
+                        print(f"{i}: {j}")
+                    auction_option = input("Choose share to auction")
+                    action = int(auction_option)
+                elif game.state.stage == InTurnStage.CHOOSE_BOND_CO:
+                    companies_held = [
+                        i
+                        for i in game.state.get_current_player_companies_held()
+                        if not COMPANY[i].private
+                    ]
+                    for i, j in enumerate(companies_held):
+                        print(f"{i}: {j}")
+                    bond_input = input("Choose company to issue bond")
+                    action = int(bond_input)
+                elif game.state.stage == InTurnStage.CHOOSE_BOND_CERT:
+                    for i, j in enumerate(game.state.bonds_remaining):
+                        print(f"{i}: {j}")
+                    bond_input = input("Choose bond to issue")
+                    action = int(bond_input)
+                elif game.state.stage == InTurnStage.CHOOSE_TAKE_RESOURCE_CO:
+                    companies_held = game.state.get_current_player_companies_held()
+                    for i, j in enumerate(companies_held):
+                        print(f"{i}: {j}")
+                    resource_input = input("Choose company to take resource from")
+                    action = int(resource_input)
+                elif game.state.stage == InTurnStage.CHOOSE_TRACK_CO:
+                    companies_held = game.state.get_current_player_companies_held()
+                    for i, j in enumerate(companies_held):
+                        print(f"{i}: {j}")
+                    track_input = input("Choose company to build track for")
+                    action = int(track_input)
 
         game.act(action)
