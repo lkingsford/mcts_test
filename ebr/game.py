@@ -448,8 +448,11 @@ class EbrGameState(GameState):
             company
             for company in COMPANY
             if self.company_state[company].owned_by is None
+            and len(self.company_state[company].shareholders) > 0
+            and COMPANIES[company].private
         ]
-        merge_possibilities = itertools.product(COMPANY, unmerged_privates)
+        publics = [company for company in COMPANY if not COMPANIES[company].private]
+        merge_possibilities = itertools.product(publics, unmerged_privates)
         merge_options = (
             (company, private)
             for company, private in merge_possibilities
@@ -652,7 +655,7 @@ class EbrGame(Game):
         elif eff_action == Action.PAY_DIVIDEND:
             self.pay_dividends()
         elif eff_action == Action.MERGE:
-            self.state.stage = InTurnStage.CHOOSE_MERGE
+            self.state.stage = InTurnStage.CHOOSE_MERGE_COS
         elif eff_action == Action.TAKE_RESOURCES:
             self.state.stage = InTurnStage.CHOOSE_TAKE_RESOURCE_CO
         elif eff_action == Action.BUILDING_TRACK:

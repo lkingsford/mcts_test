@@ -49,6 +49,7 @@ def human_play(game: EbrGame, tree):
                 print_holdings(game.state)
                 print_cube_display(game.state)
                 print_companies(game.state)
+                print(f"Player is {game.state.next_player}")
                 if game.state.stage == InTurnStage.REMOVE_CUBES:
                     cube_to_remove = input("Cube to remove: ")
                     if int(cube_to_remove) in game.state.permitted_actions:
@@ -92,6 +93,7 @@ def human_play(game: EbrGame, tree):
                     action = (x, y)
                 elif game.state.stage == InTurnStage.CHOOSE_MERGE_COS:
                     merge_options = game.state.get_current_player_merge_options()
+                    print("Merge options")
                     for i, j in enumerate(merge_options):
                         print(f"{i}: {j}")
                     merge_option = input("Choose merge option")
