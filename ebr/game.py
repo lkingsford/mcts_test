@@ -649,7 +649,7 @@ class EbrGame(Game):
         self.state.action_cubes[relevant_spaces[0]] = True
         eff_action = Action(action)
         if eff_action == Action.ISSUE_BOND:
-            self.state.stage = InTurnStage.CHOOSE_BOND
+            self.state.stage = InTurnStage.CHOOSE_BOND_CO
         elif eff_action == Action.AUCTION_SHARE:
             self.state.stage = InTurnStage.CHOOSE_AUCTION
         elif eff_action == Action.PAY_DIVIDEND:
@@ -667,7 +667,7 @@ class EbrGame(Game):
         pass
 
     def choose_bond_co(self, action):
-        self.state.phase_state = NormalTurnState(bond_co=action)
+        self.state.phase_state = NormalTurnState(company=COMPANY(action))
         self.state.stage = InTurnStage.CHOOSE_BOND_CERT
         pass
 
@@ -675,8 +675,8 @@ class EbrGame(Game):
         bond = self.state.bonds_remaining[action]
         self.state.bonds_remaining.remove(bond)
         assert isinstance(self.state.phase_state, NormalTurnState)
-        assert self.state.phase_state.bond_co is not None
-        company = self.state.company_state[self.state.phase_state.bond_co]
+        assert self.state.phase_state.company is not None
+        company = self.state.company_state[self.state.phase_state.company]
         company.treasury += bond.face_value
         company.interest += bond.interest
         self.end_turn()
