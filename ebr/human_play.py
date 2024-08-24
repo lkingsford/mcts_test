@@ -37,7 +37,7 @@ def human_play(game: EbrGame, tree):
                 or game.state.phase == Phase.INITIAL_AUCTION
             ):
                 print(
-                    f"Bid for {game.state.phase_state.company_for_auction.name}: {game.state.phase_state.current_bid} ({game.state.phase_state.current_bidder})"
+                    f"Bid for {game.state.phase_state.company.name}: {game.state.phase_state.current_bid} ({game.state.phase_state.current_bidder})"
                 )
                 bid = input(
                     f"Player {game.state.next_player} (£{game.state.player_cash[game.state.next_player]}): "

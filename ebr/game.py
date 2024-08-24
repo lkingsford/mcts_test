@@ -317,7 +317,7 @@ INITIAL_CASH = {
 class AuctionState(NamedTuple):
     current_bidder: Player
     current_bid: int
-    company_for_auction: COMPANY
+    company: COMPANY
     passed: list[Player]
 
 
@@ -518,7 +518,7 @@ class EbrGame(Game):
     def auction_action(self, bid):
         # action is bid
         # 0 is pass
-        co = self.state.phase_state.company_for_auction
+        co = self.state.phase_state.company
         if bid > self.state.phase_state.current_bid:
             self.state.phase_state = AuctionState(
                 self.state.last_player,
@@ -567,7 +567,7 @@ class EbrGame(Game):
             self.state.next_player = next_bidder
 
     def next_ipo(self):
-        current_in_order = IPO_ORDER.index(self.state.phase_state.company_for_auction)
+        current_in_order = IPO_ORDER.index(self.state.phase_state.company)
         if current_in_order == len(IPO_ORDER) - 1:
             # First player bought last co in ipo
             first_player = self.state.phase_state.current_bidder
@@ -587,15 +587,13 @@ class EbrGame(Game):
             self.state.company_state[co].private_hq[0],
             self.state.company_state[co].private_hq[1],
         )
+        relevant = get_neighbors(*coord)
+        relevant.append(coord)
         forest_neighbours = [
-            tile
-            for tile in get_neighbors(*coord)
-            if TERRAIN[tile[1]][tile[0]] == FOREST
+            tile for tile in relevant if TERRAIN[tile[1]][tile[0]] == FOREST
         ]
         mountain_neighbours = [
-            tile
-            for tile in get_neighbors(*coord)
-            if TERRAIN[tile[1]][tile[0]] == MOUNTAIN
+            tile for tile in relevant if TERRAIN[tile[1]][tile[0]] == MOUNTAIN
         ]
         for coord in forest_neighbours:
             self.state.resources.append(coord)
@@ -707,6 +705,7 @@ class EbrGame(Game):
         # This is hacky
         if action == NO_MORE_BUILDS:
             self.end_turn()
+            return
 
         company = self.state.company_state[self.state.phase_state.company]
         coord = Coordinate(action)
@@ -729,24 +728,27 @@ class EbrGame(Game):
             operations=self.state.phase_state.operations + 1,
         )
 
-        if self.state.phase_state.operations > BUILD_ACTIONS:
+        if self.state.phase_state.operations >= BUILD_ACTIONS:
             self.end_turn()
 
     def start_auction(self, action):
-        if COMPANIES[action].private:
+        company = COMPANY(action)
+        if COMPANIES[company].private:
             self.state.stage = InTurnStage.CHOOSE_PRIVATE_HQ
-            self.state.phase_state.company_for_auction = action
+            self.state.phase_state = NormalTurnState(company=company)
         else:
             self.state.phase = Phase.AUCTION
-            self.state.phase_state = AuctionState(self.state.last_player, 0, action, [])
+            self.state.phase_state = AuctionState(
+                self.state.last_player, 0, company, []
+            )
 
     def choose_private_hq(self, action):
-        self.state.company_state[
-            self.state.phase_state.company_for_auction
-        ].private_hq = Coordinate(action)
+        self.state.company_state[self.state.phase_state.company].private_hq = (
+            Coordinate(action)
+        )
         self.state.phase = Phase.AUCTION
         self.state.phase_state = AuctionState(
-            self.state.last_player, 0, self.state.phase_state.company_for_auction, []
+            self.state.last_player, 0, self.state.phase_state.company, []
         )
 
     def from_state(cls, state: GameState) -> "Game":
