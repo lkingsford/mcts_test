@@ -64,7 +64,7 @@ def human_play(game: EbrGame, tree):
                     while x == None or y == None:
                         try:
                             build_loc = input("X,Y to build track")
-                            x, y = (coord for coord in build_loc.split(","))
+                            x, y = (int(coord) for coord in build_loc.split(","))
                         except:
                             pass
                     action = (x, y)
@@ -75,7 +75,7 @@ def human_play(game: EbrGame, tree):
                     while x == None or y == None:
                         try:
                             build_loc = input("X,Y of HQ")
-                            x, y = (coord for coord in build_loc.split(","))
+                            x, y = (int(coord) for coord in build_loc.split(","))
                         except:
                             pass
                     action = (x, y)
@@ -86,7 +86,7 @@ def human_play(game: EbrGame, tree):
                     while x == None or y == None:
                         try:
                             take_loc = input("X,Y to take resource from")
-                            x, y = (coord for coord in build_loc.split(","))
+                            x, y = (int(coord) for coord in build_loc.split(","))
                         except:
                             pass
                     action = (x, y)

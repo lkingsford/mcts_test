@@ -263,7 +263,7 @@ class InTurnStage(Enum):
 
 
 class Action(Enum):
-    BUILD_TRACK = 0
+    BUILDING_TRACK = 0
     AUCTION_SHARE = 1
     TAKE_RESOURCES = 2
     ISSUE_BOND = 3
@@ -272,9 +272,9 @@ class Action(Enum):
 
 
 ACTION_CUBE_SPACES = [
-    Action.BUILD_TRACK,
-    Action.BUILD_TRACK,
-    Action.BUILD_TRACK,
+    Action.BUILDING_TRACK,
+    Action.BUILDING_TRACK,
+    Action.BUILDING_TRACK,
     Action.AUCTION_SHARE,
     Action.AUCTION_SHARE,
     Action.TAKE_RESOURCES,
@@ -480,9 +480,7 @@ class EbrGameState(GameState):
         return False
 
     def get_track_cost(self, location: Coordinate, narrow: bool) -> int:
-        tracks_at_location = [
-            t for t in self.state.track if t and t.location == location
-        ]
+        tracks_at_location = [t for t in self.track if t and t.location == location]
         terrain_type = TERRAIN[location[0] + 1][location[1] + 1]
         feature_cost = sum(
             [FEATURE_COSTS.get(f[0], 0) for l, f in FEATURES.items() if l == location]
@@ -607,9 +605,9 @@ class EbrGame(Game):
 
     def game_action(self, action):
         if self.state.stage == InTurnStage.REMOVE_CUBES:
-            self.remove_cube()
+            self.remove_cube(action)
         elif self.state.stage == InTurnStage.TAKE_ACTION:
-            self.take_action()
+            self.take_action(action)
         elif self.state.stage == InTurnStage.CHOOSE_BOND_CO:
             self.choose_bond_co(action)
         elif self.state.stage == InTurnStage.CHOOSE_BOND_CERT:
@@ -648,17 +646,18 @@ class EbrGame(Game):
             if space.value == action and not self.state.action_cubes[i]
         ]
         self.state.action_cubes[relevant_spaces[0]] = True
-        if action == Action.ISSUE_BOND:
+        eff_action = Action(action)
+        if eff_action == Action.ISSUE_BOND:
             self.state.stage = InTurnStage.CHOOSE_BOND
-        elif action == Action.AUCTION_SHARE:
+        elif eff_action == Action.AUCTION_SHARE:
             self.state.stage = InTurnStage.CHOOSE_AUCTION
-        elif action == Action.PAY_DIVIDEND:
+        elif eff_action == Action.PAY_DIVIDEND:
             self.pay_dividends()
-        elif action == Action.MERGE:
+        elif eff_action == Action.MERGE:
             self.state.stage = InTurnStage.CHOOSE_MERGE
-        elif action == Action.TAKE_RESOURCES:
+        elif eff_action == Action.TAKE_RESOURCES:
             self.state.stage == InTurnStage.CHOOSE_TAKE_RESOURCE_CO
-        elif action == Action.BUILD_TRACK:
+        elif eff_action == Action.BUILDING_TRACK:
             self.state.stage = InTurnStage.CHOOSE_TRACK_CO
 
     def pay_dividends(self):
@@ -692,17 +691,17 @@ class EbrGame(Game):
         self.end_turn()
 
     def choose_take_resource_co(self, action):
-        self.state.phase_state = NormalTurnState(company=action)
+        self.state.phase_state = NormalTurnState(company=COMPANY[action])
         self.state.stage = InTurnStage.TAKE_RESOURCE
 
     def take_resources(self, action):
         self.state.company_state[self.state.phase_state.company].resources_to_sell += 1
-        self.state.resources.remove(Coordinate(*action))
+        self.state.resources.remove(Coordinate(action))
         self.end_turn()
 
     def choose_track_co(self, action):
-        self.state.phase_state = NormalTurnState(company=action, operations=0)
-        self.state.stage = InTurnStage.BUILD_TRACK
+        self.state.phase_state = NormalTurnState(company=COMPANY(action), operations=0)
+        self.state.stage = InTurnStage.BUILDING_TRACK
 
     def build_track(self, action):
         # This is hacky
@@ -710,7 +709,7 @@ class EbrGame(Game):
             self.end_turn()
 
         company = self.state.company_state[self.state.phase_state.company]
-        coord = Coordinate(*action)
+        coord = Coordinate(action)
         assert isinstance(self.state.phase_state, NormalTurnState)
         if COMPANIES[self.state.phase_state.company].private:
             self.state.private_track_remaining -= 1
@@ -722,11 +721,12 @@ class EbrGame(Game):
                 company.treasury -= track_cost
         else:
             company.track_remaining -= 1
-            self.state.track.append(Track(coord, company, False))
+            self.state.track.append(Track(coord, self.state.phase_state.company, False))
             track_cost = self.state.get_track_cost(coord, False)
             company.treasury -= track_cost
         self.state.phase_state = NormalTurnState(
-            company=action, operations=self.state.phase_state.operations + 1
+            company=self.state.phase_state.company,
+            operations=self.state.phase_state.operations + 1,
         )
 
         if self.state.phase_state.operations > BUILD_ACTIONS:
@@ -743,7 +743,7 @@ class EbrGame(Game):
     def choose_private_hq(self, action):
         self.state.company_state[
             self.state.phase_state.company_for_auction
-        ].private_hq = Coordinate(*action)
+        ].private_hq = Coordinate(action)
         self.state.phase = Phase.AUCTION
         self.state.phase_state = AuctionState(
             self.state.last_player, 0, self.state.phase_state.company_for_auction, []
