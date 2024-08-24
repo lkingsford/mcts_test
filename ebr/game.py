@@ -28,19 +28,22 @@ TOWN = 4
 PORT = 5
 
 # Not using the consts, because easier to read with the consisitent width cells
+# Lazily using a row and column of 0s to make the coords match the printed
+# map coords without extra maths and off-by-one issues
 TERRAIN = [
-    [1, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0],
-    [2, 2, 2, 1, 5, 4, 0, 1, 0, 2, 2, 2, 3],
-    [2, 2, 3, 1, 1, 1, 5, 1, 1, 1, 2, 2, 2],
-    [0, 2, 3, 3, 2, 2, 1, 2, 5, 1, 2, 2, 2],
-    [0, 5, 4, 3, 3, 3, 2, 1, 1, 1, 1, 2, 2],
-    [0, 0, 2, 3, 3, 3, 2, 1, 1, 1, 1, 2, 2],
-    [0, 0, 3, 3, 3, 3, 2, 1, 1, 1, 1, 1, 0],
-    [0, 0, 2, 2, 3, 3, 2, 1, 1, 1, 1, 1, 0],
-    [0, 0, 0, 2, 2, 3, 2, 2, 4, 5, 1, 1, 0],
-    [0, 0, 0, 0, 2, 3, 2, 2, 2, 0, 0, 0, 0],
-    [0, 0, 0, 0, 2, 2, 2, 2, 2, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 1, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0],
+    [0, 2, 2, 2, 1, 5, 4, 0, 1, 0, 2, 2, 2, 3],
+    [0, 2, 2, 3, 1, 1, 1, 5, 1, 1, 1, 2, 2, 2],
+    [0, 0, 2, 3, 3, 2, 2, 1, 2, 5, 1, 2, 2, 2],
+    [0, 0, 5, 4, 3, 3, 3, 2, 1, 1, 1, 1, 2, 2],
+    [0, 0, 0, 2, 3, 3, 3, 2, 1, 1, 1, 1, 2, 2],
+    [0, 0, 0, 3, 3, 3, 3, 2, 1, 1, 1, 1, 1, 0],
+    [0, 0, 0, 2, 2, 3, 3, 2, 1, 1, 1, 1, 1, 0],
+    [0, 0, 0, 0, 2, 2, 3, 2, 2, 4, 5, 1, 1, 0],
+    [0, 0, 0, 0, 0, 2, 3, 2, 2, 2, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0],
 ]
 
 SYMBOL = {
@@ -213,9 +216,23 @@ def get_neighbors(x, y) -> list[Coordinate]:
     # This doesn't take into account the map
 
     if y % 2 == 1:
-        return [(x - 1, y - 1), (x, y - 1), (x + 1, y - 1), (x + 1, y), (x - 1, y)]
+        return [
+            (x - 1, y - 1),
+            (x, y - 1),
+            (x + 1, y - 1),
+            (x + 1, y),
+            (x, y + 1),
+            (x - 1, y),
+        ]
     else:
-        return [(x - 1, y), (x + 1, y), (x + 1, y + 1), (x, y + 1), (x - 1, y + 1)]
+        return [
+            (x - 1, y),
+            (x, y - 1),
+            (x + 1, y),
+            (x + 1, y + 1),
+            (x, y + 1),
+            (x - 1, y + 1),
+        ]
 
 
 class Phase(Enum):
@@ -575,12 +592,12 @@ class EbrGame(Game):
         forest_neighbours = [
             tile
             for tile in get_neighbors(*coord)
-            if TERRAIN[tile[0]][tile[1]] == FOREST
+            if TERRAIN[tile[1]][tile[0]] == FOREST
         ]
         mountain_neighbours = [
             tile
             for tile in get_neighbors(*coord)
-            if TERRAIN[tile[0]][tile[1]] == MOUNTAIN
+            if TERRAIN[tile[1]][tile[0]] == MOUNTAIN
         ]
         for coord in forest_neighbours:
             self.state.resources.append(coord)
@@ -852,18 +869,18 @@ def print_terrain(board, game: EbrGame):
     for y, row in enumerate(board):
         upper_row = [
             "   "
-            + get_track_symbol(x, y + 1, game)
-            + get_symbol(x, y + 1, row[x - 1])
-            + get_resource_symbol(x, y + 1, game)
+            + get_track_symbol(x, y, game)
+            + get_symbol(x, y, row[x])
+            + get_resource_symbol(x, y, game)
             for x in range(1, len(row), 2)
         ]
         lower_row = [
             "   "
-            + get_track_symbol(x, y + 1, game)
-            + get_symbol(x, y + 1, row[x - 1])
-            + get_resource_symbol(x, y + 1, game)
+            + get_track_symbol(x, y, game)
+            + get_symbol(x, y, row[x])
+            + get_resource_symbol(x, y, game)
             for x in range(2, len(row), 2)
         ]
-        print(f"{y + 1:2}" + "".join(upper_row))
-        print(f"{y + 1:2}    " + "".join(lower_row))
+        print(f"{y :2}" + "".join(upper_row))
+        print(f"{y :2}    " + "".join(lower_row))
     print("\033[0m")
