@@ -114,7 +114,7 @@ def human_play(game: EbrGame, tree):
                     companies_held = [
                         i
                         for i in game.state.get_current_player_companies_held()
-                        if not COMPANY[i].private
+                        if not COMPANIES[i].private
                     ]
                     for i, j in enumerate(companies_held):
                         print(f"{i}: {j}")
