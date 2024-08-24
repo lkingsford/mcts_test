@@ -86,7 +86,7 @@ def human_play(game: EbrGame, tree):
                     while x == None or y == None:
                         try:
                             take_loc = input("X,Y to take resource from")
-                            x, y = (int(coord) for coord in build_loc.split(","))
+                            x, y = (int(coord) for coord in take_loc.split(","))
                         except:
                             pass
                     action = (x, y)

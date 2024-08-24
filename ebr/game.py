@@ -654,7 +654,7 @@ class EbrGame(Game):
         elif eff_action == Action.MERGE:
             self.state.stage = InTurnStage.CHOOSE_MERGE
         elif eff_action == Action.TAKE_RESOURCES:
-            self.state.stage == InTurnStage.CHOOSE_TAKE_RESOURCE_CO
+            self.state.stage = InTurnStage.CHOOSE_TAKE_RESOURCE_CO
         elif eff_action == Action.BUILDING_TRACK:
             self.state.stage = InTurnStage.CHOOSE_TRACK_CO
 
@@ -689,8 +689,8 @@ class EbrGame(Game):
         self.end_turn()
 
     def choose_take_resource_co(self, action):
-        self.state.phase_state = NormalTurnState(company=COMPANY[action])
-        self.state.stage = InTurnStage.TAKE_RESOURCE
+        self.state.phase_state = NormalTurnState(company=COMPANY(action))
+        self.state.stage = InTurnStage.TAKE_RESOURCES
 
     def take_resources(self, action):
         self.state.company_state[self.state.phase_state.company].resources_to_sell += 1
@@ -867,7 +867,7 @@ def get_resource_symbol(x, y, game):
 # 0   2   4
 #   1   3   5
 def print_terrain(board, game: EbrGame):
-    print("    " + "   ".join([f"{x:2}" for x in range(1, 10)]))
+    print("    " + "    ".join([f"{x:2}" for x in range(1, 10)]))
     for y, row in enumerate(board):
         upper_row = [
             "   "
