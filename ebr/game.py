@@ -473,7 +473,7 @@ class EbrGameState(GameState):
         while len(connected_track) > 0:
             track_coord = connected_track.pop()
             visited_track.add(track_coord)
-            track = [t for t in self.state.track if t and t.location == track_coord]
+            track = [t for t in self.track if t and t.location == track_coord]
             if any(t for t in track if t.owner == company):
                 return True
             if any(t.narrow for t in track):
@@ -575,7 +575,7 @@ class EbrGame(Game):
             # First player bought last co in ipo
             first_player = self.state.phase_state.current_bidder
             self.end_turn()
-            self.active_player = first_player
+            self.state.next_player = first_player
         else:
             self.state.next_player = self.state.phase_state.current_bidder
             self.state.phase_state = AuctionState(
@@ -614,7 +614,7 @@ class EbrGame(Game):
         elif self.state.stage == InTurnStage.CHOOSE_BOND_CERT:
             self.issue_bond(action)
         elif self.state.stage == InTurnStage.CHOOSE_MERGE_COS:
-            self.choose_merge_cos(*action)
+            self.choose_merge_cos(action)
         elif self.state.stage == InTurnStage.CHOOSE_AUCTION:
             self.start_auction(action)
         elif self.state.stage == InTurnStage.CHOOSE_PRIVATE_HQ:
@@ -681,14 +681,19 @@ class EbrGame(Game):
         company.interest += bond.interest
         self.end_turn()
 
-    def choose_merge_cos(self, co_idx, private_idx):
+    def choose_merge_cos(self, action):
+        merge_options = self.state.get_current_player_merge_options()
+        co_idx, private_idx = merge_options[action]
         company = self.state.company_state[co_idx]
         private = self.state.company_state[private_idx]
-        company.privates_owned.append(private)
-        private.owned_by = company
+        company.privates_owned.append(private_idx)
+        private.owned_by = co_idx
         company.shareholders.append(private.shareholders[0])
         private.shareholders = []
         company.interest += private.interest
+        private.interest = 0
+        company.treasury += private.treasury
+        private.treasury = 0
         self.end_turn()
 
     def choose_take_resource_co(self, action):
