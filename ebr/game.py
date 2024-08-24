@@ -3,9 +3,13 @@ from enum import Enum
 import itertools
 import math
 from typing import NamedTuple, Optional, Hashable, Union
-import numpy as np
+import logging
 import copy
+import numpy as np
 from game import Game, GameState
+
+LOGGER = logging.getLogger(__name__)
+
 
 # LET'S WRITE PYTHON LIKE WE'RE USING C STRUCTS!
 # I don't really like this, but we are strictly separating state from logic,
@@ -67,28 +71,39 @@ MULTIPLE_TRACK_ALLOWED = {
     PORT: True,
 }
 
+
+class Feature(NamedTuple):
+    """A feature on the board, e.g. a town or port"""
+
+    feature_type: str
+    location_name: Optional[str] = None
+    revenue: Optional[list] = None
+
+
 FEATURES = {
-    (5, 2): ("PORT", "Burnie", [2, 2, 1, 1, 0, 0]),
-    (6, 2): ("TOWN", "Ulverstone", [2, 2, 1, 1, 1, 1]),
-    (3, 7): ("PORT", "Devonport", [3, 3, 1, 1, 0, 0]),
-    (4, 9): ("PORT", "Launceston", [3, 3, 1, 1, 0, 0]),
-    (5, 3): ("TOWN", "Queenstown", [2, 2, 2, 2, 2, 2]),
-    (5, 2): ("PORT", "Port of Strahan", [2, 2, 0, 0, 0, 0]),
-    (9, 9): ("TOWN", "New Norfolk", [2, 2, 2, 2, 2, 2]),
-    (9, 10): ("PORT", "Hobart", [5, 5, 4, 4, 3, 3]),
-    (8, 2): ("WATER1",),
-    (8, 3): ("WATER1",),
-    (8, 5): ("WATER2",),
-    (9, 6): ("WATER1",),
-    (3, 7): ("WATER2",),
-    (4, 7): ("WATER1",),
-    (6, 8): ("WATER1",),
-    (6, 9): ("WATER1",),
-    (10, 9): ("WATER1",),
-    (5, 11): ("WATER2",),
-    (9, 11): ("WATER2",),
-    (6, 11): ("WATER1",),
+    (5, 2): Feature("PORT", "Burnie", [2, 2, 1, 1, 0, 0]),
+    (6, 2): Feature("TOWN", "Ulverstone", [2, 2, 1, 1, 1, 1]),
+    (3, 7): Feature("PORT", "Devonport", [3, 3, 1, 1, 0, 0]),
+    (4, 9): Feature("PORT", "Launceston", [3, 3, 1, 1, 0, 0]),
+    (5, 3): Feature("TOWN", "Queenstown", [2, 2, 2, 2, 2, 2]),
+    (5, 2): Feature("PORT", "Port of Strahan", [2, 2, 0, 0, 0, 0]),
+    (9, 9): Feature("TOWN", "New Norfolk", [2, 2, 2, 2, 2, 2]),
+    (9, 10): Feature("PORT", "Hobart", [5, 5, 4, 4, 3, 3]),
+    (8, 2): Feature("WATER1"),
+    (8, 3): Feature("WATER1"),
+    (8, 5): Feature("WATER2"),
+    (9, 6): Feature("WATER1"),
+    (3, 7): Feature("WATER2"),
+    (4, 7): Feature("WATER1"),
+    (6, 8): Feature("WATER1"),
+    (6, 9): Feature("WATER1"),
+    (10, 9): Feature("WATER1"),
+    (5, 11): Feature("WATER2"),
+    (9, 11): Feature("WATER2"),
+    (6, 11): Feature("WATER1"),
 }
+
+PORTS = [c for c, f in FEATURES.items() if f.feature_type == "PORT"]
 
 
 class COMPANY(Enum):
@@ -486,7 +501,11 @@ class EbrGameState(GameState):
         tracks_at_location = [t for t in self.track if t and t.location == location]
         terrain_type = TERRAIN[location[0] + 1][location[1] + 1]
         feature_cost = sum(
-            [FEATURE_COSTS.get(f[0], 0) for l, f in FEATURES.items() if l == location]
+            [
+                FEATURE_COSTS.get(f.feature_type, 0)
+                for l, f in FEATURES.items()
+                if l == location
+            ]
         )
 
         if not narrow:
@@ -663,8 +682,74 @@ class EbrGame(Game):
 
     def pay_dividends(self):
         self.state.last_dividend_was += 1
-        # TODO Calculate revenue
-        pass
+        for abbr, company in self.state.company_state.items():
+            assert company
+            if len(company.shareholders) == 0 or company.owned_by is not None:
+                continue
+            payout = 0
+            if company.interest > 0:
+                payout -= company.interest
+            if company.resources_to_sell > 0:
+                ports = self.get_ports_connected_to(abbr, company)
+                payout += (1 + ports) * company.resources_to_sell
+                company.resources_to_sell = 0
+            for coord, feature in FEATURES.items():
+                if feature.revenue:
+                    has_track_in_location = [
+                        track
+                        for track in self.state.track
+                        if track.location == coord and track.owner == abbr
+                    ]
+                    if len(has_track_in_location) > 0:
+                        payout += feature.revenue[company.last_dividend_was]
+            payout_per_shareholder = (
+                math.ceil(payout / len(company.shareholders))
+                if payout > 0
+                else math.floor(payout / len(company.shareholders))
+            )
+            LOGGER.debug("%s Total payout: %d", abbr, payout)
+            LOGGER.debug("%s Payout per shareholder: %d", abbr, payout_per_shareholder)
+            # TODO: Implement cascading bankruptcy
+            for shareholder in company.shareholders:
+                self.state.player_cash[shareholder] += payout_per_shareholder
+
+    def get_ports_connected_to(self, co_abbr: COMPANY, company_state: CompanyState):
+        port_count = 0
+        private_hqs_to_check: list[Coordinate] = []
+        if not COMPANIES[co_abbr].private:
+            pass
+        else:
+            if company_state.private_hq:
+                private_hqs_to_check.append(company_state.private_hq)
+
+        private_hqs_to_check.extend(
+            [
+                self.state.company_state[private].private_hq
+                for private in company_state.privates_owned
+                if self.state.company_state[private].private_hq
+            ]
+        )
+
+        visited_track = set()
+        for private_hq in private_hqs_to_check:
+            visited_track.add(private_hq)
+            connected_track: list[Coordinate] = get_neighbors(*private_hq)
+            while len(connected_track) > 0:
+                track_coord = connected_track.pop()
+                visited_track.add(track_coord)
+                track = [t for t in self.track if t and t.location == track_coord]
+                # The Os. They're very big Os indeed. :s
+                if any(t for t in track if t.narrow and t.location in PORTS):
+                    port_count += 1
+                if any(t.narrow for t in track):
+                    connected_track.extend(
+                        [
+                            i
+                            for i in get_neighbors(*track_coord)
+                            if i not in visited_track
+                        ]
+                    )
+        return port_count
 
     def choose_bond_co(self, action):
         self.state.phase_state = NormalTurnState(company=COMPANY(action))
@@ -849,9 +934,9 @@ class EbrGame(Game):
 def get_symbol(x, y, terrain):
     base_symbol = SYMBOL[terrain]
     if (x, y) in FEATURES:
-        if FEATURES[(x, y)][0] == "WATER1":
+        if FEATURES[(x, y)].feature_type == "WATER1":
             return "" + base_symbol + "\033[34m~"
-        if FEATURES[(x, y)][0] == "WATER2":
+        if FEATURES[(x, y)].feature_type == "WATER2":
             return "" + base_symbol + "\033[34m≈"
     return "" + base_symbol + " "
 
