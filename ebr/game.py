@@ -471,7 +471,7 @@ class EbrGameState(GameState):
             return [i.value for i in self.auctionable_companies()]
         if self.stage == InTurnStage.CHOOSE_MERGE_COS:
             # Index of share possibility
-            return [i for i, _ in enumerate(self.get_current_player_auction_options())]
+            return [i for i, _ in enumerate(self.get_current_player_merge_options())]
         if self.stage == InTurnStage.CHOOSE_PRIVATE_HQ:
             # X, Y of any forest or mountain without a HQ
             hqs = [hq for hq in self.company_state if self.company_state[hq].hq]
