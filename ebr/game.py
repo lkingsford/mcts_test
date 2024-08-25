@@ -447,7 +447,7 @@ class EbrGameState(GameState):
                         if not self.action_cubes[idx]
                         and not ACTION_CUBE_SPACES[idx].value
                         == self.phase_state.action_removed
-                        and self.player_can_take_action(ACTION_CUBE_SPACES[idx])
+                        and self.current_player_can_take_action(ACTION_CUBE_SPACES[idx])
                     ]
                 )
             )
@@ -683,6 +683,10 @@ class EbrGameState(GameState):
     def get_track_cost(self, location: Coordinate, narrow: bool) -> int:
         tracks_at_location = [t for t in self.track if t and t.location == location]
         terrain_type = TERRAIN[location[0] + 1][location[1] + 1]
+        if terrain_type == 0:
+            # Lazy, but works. Will change if there's a problem.
+            # (again, prototype tool - make it work asap)
+            return 99999
         feature_cost = sum(
             [
                 FEATURE_COSTS.get(f.feature_type, 0)
