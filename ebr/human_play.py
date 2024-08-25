@@ -31,6 +31,7 @@ def human_play(game: EbrGame, tree):
         # Check for which player here
         action = None
         while action == None:
+            print(f"Permitted actions: {game.state.permitted_actions}")
             print_holdings(game.state)
             if (
                 game.state.phase == Phase.AUCTION
@@ -50,6 +51,7 @@ def human_play(game: EbrGame, tree):
                 print_cube_display(game.state)
                 print_companies(game.state)
                 print(f"Player is {game.state.next_player}")
+                print(f"Permitted actions: {game.state.permitted_actions}")
                 if game.state.stage == InTurnStage.REMOVE_CUBES:
                     cube_to_remove = input("Cube to remove: ")
                     if int(cube_to_remove) in game.state.permitted_actions:
