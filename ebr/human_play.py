@@ -139,5 +139,8 @@ def human_play(game: EbrGame, tree):
                         print(f"{i}: {j}")
                     track_input = input("Choose company to build track for")
                     action = int(track_input)
+            if action not in game.state.permitted_actions:
+                print("Invalid action")
+                action = None
 
         game.act(action)
