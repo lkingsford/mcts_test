@@ -89,6 +89,7 @@ FEATURES = {
     (2, 5): Feature("PORT", "Port of Strahan", [2, 2, 0, 0, 0, 0]),
     (9, 9): Feature("TOWN", "New Norfolk", [2, 2, 2, 2, 2, 2]),
     (10, 9): Feature("PORT", "Hobart", [5, 5, 4, 4, 3, 3]),
+    # TODO: Confirm water locations
     (8, 2): Feature("WATER1"),
     (8, 3): Feature("WATER1"),
     (8, 5): Feature("WATER2"),
@@ -433,11 +434,69 @@ class EbrGameState(GameState):
                         if not self.action_cubes[idx]
                         and not ACTION_CUBE_SPACES[idx].value
                         == self.phase_state.action_removed
+                        and self.player_can_take_action(ACTION_CUBE_SPACES[idx])
                     ]
                 )
             )
+        if self.stage == InTurnStage.BUILDING_TRACK:
+            # List of places the track can be placed
+            # Also, cancel, if at least one move done
+            pass
+        if self.stage == InTurnStage.TAKE_RESOURCES:
+            # List of resources available to companykk
+            pass
+        if self.stage == InTurnStage.CHOOSE_BOND_CO:
+            # Company number 
+            return [i.value for i in self.companies_owned(self.next_player)]
+        if self.stage == InTurnStage.CHOOSE_BOND_CERT:
+            # Index of bond remaining
+            return [i for i, _ in enumerate(self.bonds_remaining)]
+        if self.stage == InTurnStage.CHOOSE_AUCTION:
+            # Company number if shares remaining
+            pass
+        if self.stage == InTurnStage.CHOOSE_MERGE_COS:
+            # Index of share possibility
+            pass
+        if self.stage == InTurnStage.CHOOSE_PRIVATE_HQ:
+            # X, Y of any forest or mountain
+            pass
+        if self.stage == InTurnStage.CHOOSE_TRACK_CO:
+            # Company number owned, and can afford at least 1 track
+            return [i.value for i in self.companies_owned(self.next_player)]
+        if self.stage == InTurnStage.CHOOSE_TAKE_RESOURCE_CO:
+            # Company number owned, if any resources can be taken
+            return [i.value for i in self.companies_owned(self.next_player)]
+            pass
 
         return []
+
+    def current_player_can_take_action(self,  action: Action) -> bool:
+        if action == Action.AUCTION_SHARE:
+            return len(self.auctionable_companies()) > 0
+        if action == Action.MERGE:
+            return len(self.get_current_player_merge_options()) > 0
+        if action == Action.TAKE_RESOURCES:
+            return any([True for company in self.companies_owned(self.next_player) if self.resources_company_can_reach(company) > 0])
+        if action == Action.BUILDING_TRACK:
+            pass
+        if action == Action.ISSUE_BOND:
+            pass
+        if action == Action.PAY_DIVIDEND:
+            return True
+
+    def companies_owned(self, player) -> list[COMPANY]:
+        result: list[COMPANY] = []
+        for company in COMPANY:
+            if player in self.company_state[company].shareholders:
+                result.append(company)
+        return result
+
+    def resources_company_can_reach(self, company): COMPANY -> list[Coordinate]:
+        # TODO: This
+        return []
+
+    def auctionable_companies(self) -> list[COMPANY]:
+        return [company for company in COMPANY if self.company_state[company].shareholders < COMPANIES[company].stock_available and self.company_state[company].owned_by is None]
 
     def winner(self) -> int:
         pass
@@ -962,7 +1021,7 @@ def get_resource_symbol(x, y, game):
 # 0   2   4
 #   1   3   5
 def print_terrain(board, game: EbrGame):
-    print("     " + "  ".join([f"{x:2}" for x in range(1, 11)]))
+    print("     " + "  ".join([f"{x:2}" for x in range(1, 13)]))
     for y, row in enumerate(board):
         upper_row = [
             "   "
