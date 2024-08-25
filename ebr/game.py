@@ -23,6 +23,7 @@ Coordinate = tuple[int, int]
 Player = int
 
 FINAL_DIVIDEND_COUNT = 6
+PRIVATE_TRACK_TOTAL = 12
 
 NOTHING = 0
 PLAIN = 1
@@ -563,6 +564,8 @@ class EbrGameState(GameState):
             can_spend = self.company_state[company].treasury
 
         if COMPANIES[company].private:
+            if self.private_track_remaining == 0:
+                return []
             hq = self.company_state[company].hq
             assert hq
             connected_track = get_neighbors(*hq)
@@ -590,6 +593,9 @@ class EbrGameState(GameState):
             ]
             return can_afford
 
+        # Public
+        if self.company_state[company].track_remaining == 0:
+            return []
         buildable_locations: set[Coordinate] = set()
         company_track = [
             track.location for track in self.track if track.owner == company
@@ -1086,7 +1092,7 @@ class EbrGame(Game):
             self.auction_action(action)
         else:
             self.game_action(action)
-        self.check_for_stalemate(self)
+        self.check_for_stalemate()
         return self.state
 
     def check_for_stalemate(self):
@@ -1146,7 +1152,7 @@ class EbrGame(Game):
             phase_state=auction_state,
             track=track,
             resources=resources,
-            private_track_remaining=0,
+            private_track_remaining=PRIVATE_TRACK_TOTAL,
             company_state=company_state,
             bonds_remaining=bonds_remaining,
             previous_actions=previous_actions,
