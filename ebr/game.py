@@ -81,14 +81,14 @@ class Feature(NamedTuple):
 
 
 FEATURES = {
-    (5, 2): Feature("PORT", "Burnie", [2, 2, 1, 1, 0, 0]),
-    (6, 2): Feature("TOWN", "Ulverstone", [2, 2, 1, 1, 1, 1]),
-    (3, 7): Feature("PORT", "Devonport", [3, 3, 1, 1, 0, 0]),
-    (4, 9): Feature("PORT", "Launceston", [3, 3, 1, 1, 0, 0]),
-    (5, 3): Feature("TOWN", "Queenstown", [2, 2, 2, 2, 2, 2]),
-    (5, 2): Feature("PORT", "Port of Strahan", [2, 2, 0, 0, 0, 0]),
+    (2, 5): Feature("PORT", "Burnie", [2, 2, 1, 1, 0, 0]),
+    (2, 6): Feature("TOWN", "Ulverstone", [2, 2, 1, 1, 1, 1]),
+    (7, 3): Feature("PORT", "Devonport", [3, 3, 1, 1, 0, 0]),
+    (9, 4): Feature("PORT", "Launceston", [3, 3, 1, 1, 0, 0]),
+    (3, 5): Feature("TOWN", "Queenstown", [2, 2, 2, 2, 2, 2]),
+    (2, 5): Feature("PORT", "Port of Strahan", [2, 2, 0, 0, 0, 0]),
     (9, 9): Feature("TOWN", "New Norfolk", [2, 2, 2, 2, 2, 2]),
-    (9, 10): Feature("PORT", "Hobart", [5, 5, 4, 4, 3, 3]),
+    (10, 9): Feature("PORT", "Hobart", [5, 5, 4, 4, 3, 3]),
     (8, 2): Feature("WATER1"),
     (8, 3): Feature("WATER1"),
     (8, 5): Feature("WATER2"),
@@ -695,13 +695,14 @@ class EbrGame(Game):
                 company.resources_to_sell = 0
             for coord, feature in FEATURES.items():
                 if feature.revenue:
+                    # Todo - fix this, it ain't working - it's not returning the feature
                     has_track_in_location = [
                         track
                         for track in self.state.track
                         if track.location == coord and track.owner == abbr
                     ]
                     if len(has_track_in_location) > 0:
-                        payout += feature.revenue[company.last_dividend_was]
+                        payout += feature.revenue[self.state.last_dividend_was]
             payout_per_shareholder = (
                 math.ceil(payout / len(company.shareholders))
                 if payout > 0
@@ -938,6 +939,7 @@ def get_symbol(x, y, terrain):
             return "" + base_symbol + "\033[34m~"
         if FEATURES[(x, y)].feature_type == "WATER2":
             return "" + base_symbol + "\033[34m≈"
+        return "" + base_symbol + "O"
     return "" + base_symbol + " "
 
 
@@ -960,7 +962,7 @@ def get_resource_symbol(x, y, game):
 # 0   2   4
 #   1   3   5
 def print_terrain(board, game: EbrGame):
-    print("    " + "    ".join([f"{x:2}" for x in range(1, 10)]))
+    print("     " + "  ".join([f"{x:2}" for x in range(1, 11)]))
     for y, row in enumerate(board):
         upper_row = [
             "   "
