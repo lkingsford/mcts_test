@@ -412,6 +412,7 @@ class EbrGameState(GameState):
         self.player_cash = copy.deepcopy(player_cash)
         self.active_player = active_player
         self._previous_actions = previous_actions
+        self._winner = -1
 
     @property
     def player_id(self) -> int:
@@ -623,7 +624,7 @@ class EbrGameState(GameState):
         ]
 
     def winner(self) -> int:
-        pass
+        return self._winner
 
     @property
     def player_count(self) -> int:
@@ -901,6 +902,34 @@ class EbrGame(Game):
             for shareholder in company.shareholders:
                 self.state.player_cash[shareholder] += payout_per_shareholder
 
+        if min(self.state.player_cash) < 0:
+            self.state.winner = np.argmax(self.state.player_cash)
+
+        public_track_end_condition = (
+            len(
+                c.track_remaining == 0
+                for abbr, c in self.state.company_state.items()
+                if COMPANIES[abbr].private == False
+            )
+            >= 2
+        )
+        all_shares_sold_end_condition = all(
+            len(c.shareholders) == COMPANIES[abbr].num_shares or c.owned_by
+            for abbr, c in self.state.company_state.items()
+        )
+        three_or_fewere_resources_end_condition = len(self.state.resources) <= 3
+        if (
+            sum(
+                [
+                    public_track_end_condition,
+                    all_shares_sold_end_condition,
+                    three_or_fewere_resources_end_condition,
+                ]
+            )
+            >= 2
+        ):
+            self.state.winner = np.argmax(self.state.player_cash)
+
     def get_ports_connected_to(self, co_abbr: COMPANY, company_state: CompanyState):
         port_count = 0
         hqs_to_check: list[Coordinate] = []
@@ -1057,7 +1086,14 @@ class EbrGame(Game):
             self.auction_action(action)
         else:
             self.game_action(action)
+        self.check_for_stalemate(self)
         return self.state
+
+    def check_for_stalemate(self):
+        if self.state.winner == -1 and len(self.state.permitted_actions) == 0:
+            self.pay_dividends()
+            winner = np.argmax(self.state.player_cash)
+            self.state._winner = winner
 
     def is_game_over(self, state: GameState) -> bool:
         return False
