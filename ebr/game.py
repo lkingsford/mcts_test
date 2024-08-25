@@ -50,6 +50,19 @@ TERRAIN = [
     [0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0],
 ]
 
+FORESTS = [
+    (x, y)
+    for x in range(len(TERRAIN[0]))
+    for y in range(len(TERRAIN))
+    if TERRAIN[y][x] == FOREST
+]
+MOUNTAINS = [
+    (x, y)
+    for x in range(len(TERRAIN[0]))
+    for y in range(len(TERRAIN))
+    if TERRAIN[y][x] == MOUNTAIN
+]
+
 SYMBOL = {
     0: " ",
     1: "\033[37m-",
@@ -353,7 +366,7 @@ class CompanyState:
     shareholders: list[Player]
     interest: int = 0
     resources_to_sell: int = 0
-    private_hq: Optional[Coordinate] = None
+    hq: Optional[Coordinate] = None
 
 
 class EbrGameState(GameState):
@@ -406,7 +419,7 @@ class EbrGameState(GameState):
         pass
 
     @property
-    def permitted_actions(self) -> list[int]:
+    def permitted_actions(self) -> list[Hashable]:
         if self.phase == Phase.INITIAL_AUCTION or self.phase == Phase.AUCTION:
             return [0] + list(
                 range(
@@ -441,46 +454,63 @@ class EbrGameState(GameState):
         if self.stage == InTurnStage.BUILDING_TRACK:
             # List of places the track can be placed
             # Also, cancel, if at least one move done
-            pass
+            return [i for i in self.track_company_can_build(self.phase_state.company)]
         if self.stage == InTurnStage.TAKE_RESOURCES:
             # List of resources available to companykk
-            pass
+            return [
+                i for i in self.resources_company_can_reach(self.phase_state.company)
+            ]
         if self.stage == InTurnStage.CHOOSE_BOND_CO:
-            # Company number 
+            # Company number
             return [i.value for i in self.companies_owned(self.next_player)]
         if self.stage == InTurnStage.CHOOSE_BOND_CERT:
             # Index of bond remaining
             return [i for i, _ in enumerate(self.bonds_remaining)]
         if self.stage == InTurnStage.CHOOSE_AUCTION:
             # Company number if shares remaining
-            pass
+            return [i.value for i in self.auctionable_companies()]
         if self.stage == InTurnStage.CHOOSE_MERGE_COS:
             # Index of share possibility
-            pass
+            return [i for i, _ in enumerate(self.get_current_player_auction_options())]
         if self.stage == InTurnStage.CHOOSE_PRIVATE_HQ:
-            # X, Y of any forest or mountain
-            pass
+            # X, Y of any forest or mountain without a HQ
+            hqs = [hq for hq in self.company_state if self.company_state[hq].hq]
+            return [coord for coord in FORESTS + MOUNTAINS if coord not in hqs]
         if self.stage == InTurnStage.CHOOSE_TRACK_CO:
             # Company number owned, and can afford at least 1 track
             return [i.value for i in self.companies_owned(self.next_player)]
         if self.stage == InTurnStage.CHOOSE_TAKE_RESOURCE_CO:
             # Company number owned, if any resources can be taken
             return [i.value for i in self.companies_owned(self.next_player)]
-            pass
 
         return []
 
-    def current_player_can_take_action(self,  action: Action) -> bool:
+    def current_player_can_take_action(self, action: Action) -> bool:
         if action == Action.AUCTION_SHARE:
             return len(self.auctionable_companies()) > 0
         if action == Action.MERGE:
             return len(self.get_current_player_merge_options()) > 0
         if action == Action.TAKE_RESOURCES:
-            return any([True for company in self.companies_owned(self.next_player) if self.resources_company_can_reach(company) > 0])
+            return any(
+                [
+                    True
+                    for company in self.companies_owned(self.next_player)
+                    if len(self.resources_company_can_reach(company)) > 0
+                ]
+            )
         if action == Action.BUILDING_TRACK:
-            pass
+            return any(
+                [
+                    True
+                    for company in self.companies_owned(self.next_player)
+                    if len(self.track_company_can_build(company)) > 0
+                ]
+            )
         if action == Action.ISSUE_BOND:
-            pass
+            return (
+                len(self.companies_owned(self.next_player)) > 0
+                and len(self.bonds_remaining) > 0
+            )
         if action == Action.PAY_DIVIDEND:
             return True
 
@@ -491,12 +521,106 @@ class EbrGameState(GameState):
                 result.append(company)
         return result
 
-    def resources_company_can_reach(self, company): COMPANY -> list[Coordinate]:
-        # TODO: This
-        return []
+    def resources_company_can_reach(self, company: COMPANY) -> list[Coordinate]:
+        resources: list[Coordinate] = []
+        if COMPANIES[company].private:
+            hq = self.company_state[company].hq
+            assert hq
+            connected_track = get_neighbors(*hq)
+            visited_track = set([hq])
+            while len(connected_track) > 0:
+                track_coord = connected_track.pop()
+                visited_track.add(track_coord)
+                track = [t for t in self.track if t and t.location == track_coord]
+                if any(t.narrow for t in track):
+                    resources.extend([r for r in self.resources if track_coord == r])
+                    connected_track.extend(
+                        [
+                            i
+                            for i in get_neighbors(*track_coord)
+                            if i not in visited_track
+                        ]
+                    )
+            return resources
+
+        # HOLY BIG O BATMAN!
+        # Seriously Lachlan, are you even remotely thinking about efficiency?
+        # A: This is a tool for me. I'm not prematurely optimizing unless it's not fast enough.
+        company_track = [
+            track.location for track in self.track if track.owner == company
+        ]
+        return [r for r in self.resources if r in company_track]
+
+    def track_company_can_build(self, company: COMPANY) -> list[Coordinate]:
+        # I PREDICT:
+        # This is the most need of efficiency function here
+        if self.company_state[company].owned_by:
+            owned_by = self.company_state[company].owned_by
+            assert owned_by
+            can_spend = self.company_state[owned_by].treasury
+        else:
+            can_spend = self.company_state[company].treasury
+
+        if COMPANIES[company].private:
+            hq = self.company_state[company].hq
+            assert hq
+            connected_track = get_neighbors(*hq)
+            visited_track = set([hq])
+            buildable_locations: set[Coordinate] = set()
+            while len(connected_track) > 0:
+                track_coord = connected_track.pop()
+                visited_track.add(track_coord)
+                track = [t for t in self.track if t and t.location == track_coord]
+                if any(t.narrow for t in track):
+                    buildable_locations.union(set(get_neighbors(*track_coord)))
+                    connected_track.extend(
+                        [
+                            i
+                            for i in get_neighbors(*track_coord)
+                            if i not in visited_track
+                        ]
+                    )
+            narrow_gauge = [track.location for track in self.track if track.narrow]
+            excluding_existing = buildable_locations - set(narrow_gauge)
+            can_afford = [
+                coord
+                for coord in excluding_existing
+                if can_spend >= self.get_track_cost(coord, True)
+            ]
+            return can_afford
+
+        buildable_locations: set[Coordinate] = set()
+        company_track = [
+            track.location for track in self.track if track.owner == company
+        ]
+        for track_location in company_track:
+            buildable_locations.update(get_neighbors(*track_location))
+        excluding_existing = buildable_locations - set(company_track)
+        can_afford = [
+            coord
+            for coord in excluding_existing
+            if can_spend >= self.get_track_cost(coord, False)
+        ]
+        # permitted if allowed multiple or no other
+        permitted_build = [
+            coord
+            for coord in can_afford
+            if MULTIPLE_TRACK_ALLOWED[TERRAIN[coord[1]][coord[0]]]
+            or len(
+                [t for t in self.track if t and t.location == coord and not t.narrow]
+            )
+            == 0
+        ]
+        return permitted_build
 
     def auctionable_companies(self) -> list[COMPANY]:
-        return [company for company in COMPANY if self.company_state[company].shareholders < COMPANIES[company].stock_available and self.company_state[company].owned_by is None]
+        return [
+            company
+            for company in COMPANY
+            if len(self.company_state[company].shareholders)
+            < COMPANIES[company].stock_available
+            and self.company_state[company].owned_by is None
+        ]
 
     def winner(self) -> int:
         pass
@@ -540,10 +664,10 @@ class EbrGameState(GameState):
 
     def private_connected_to(self, company, private) -> bool:
         # Check if the private is connected to any of the companies track
-        private_hq = self.company_state[private].private_hq
-        assert private_hq
-        connected_track: list[Coordinate] = get_neighbors(*private_hq)
-        visited_track = set([private_hq])
+        hq = self.company_state[private].hq
+        assert hq
+        connected_track: list[Coordinate] = get_neighbors(*hq)
+        visited_track = set([hq])
         while len(connected_track) > 0:
             track_coord = connected_track.pop()
             visited_track.add(track_coord)
@@ -665,8 +789,8 @@ class EbrGame(Game):
 
     def expand_resources(self, co):
         coord = (
-            self.state.company_state[co].private_hq[0],
-            self.state.company_state[co].private_hq[1],
+            self.state.company_state[co].hq[0],
+            self.state.company_state[co].hq[1],
         )
         relevant = get_neighbors(*coord)
         relevant.append(coord)
@@ -696,7 +820,7 @@ class EbrGame(Game):
         elif self.state.stage == InTurnStage.CHOOSE_AUCTION:
             self.start_auction(action)
         elif self.state.stage == InTurnStage.CHOOSE_PRIVATE_HQ:
-            self.choose_private_hq(action)
+            self.choose_hq(action)
         elif self.state.stage == InTurnStage.CHOOSE_TAKE_RESOURCE_CO:
             self.choose_take_resource_co(action)
         elif self.state.stage == InTurnStage.TAKE_RESOURCES:
@@ -775,25 +899,25 @@ class EbrGame(Game):
 
     def get_ports_connected_to(self, co_abbr: COMPANY, company_state: CompanyState):
         port_count = 0
-        private_hqs_to_check: list[Coordinate] = []
+        hqs_to_check: list[Coordinate] = []
         if not COMPANIES[co_abbr].private:
             pass
         else:
-            if company_state.private_hq:
-                private_hqs_to_check.append(company_state.private_hq)
+            if company_state.hq:
+                hqs_to_check.append(company_state.hq)
 
-        private_hqs_to_check.extend(
+        hqs_to_check.extend(
             [
-                self.state.company_state[private].private_hq
+                self.state.company_state[private].hq
                 for private in company_state.privates_owned
-                if self.state.company_state[private].private_hq
+                if self.state.company_state[private].hq
             ]
         )
 
         visited_track = set()
-        for private_hq in private_hqs_to_check:
-            visited_track.add(private_hq)
-            connected_track: list[Coordinate] = get_neighbors(*private_hq)
+        for hq in hqs_to_check:
+            visited_track.add(hq)
+            connected_track: list[Coordinate] = get_neighbors(*hq)
             while len(connected_track) > 0:
                 track_coord = connected_track.pop()
                 visited_track.add(track_coord)
@@ -895,10 +1019,8 @@ class EbrGame(Game):
                 self.state.last_player, 0, company, []
             )
 
-    def choose_private_hq(self, action):
-        self.state.company_state[self.state.phase_state.company].private_hq = (
-            Coordinate(action)
-        )
+    def choose_hq(self, action):
+        self.state.company_state[self.state.phase_state.company].hq = Coordinate(action)
         self.state.phase = Phase.AUCTION
         self.state.phase_state = AuctionState(
             self.state.last_player, 0, self.state.phase_state.company, []
@@ -955,7 +1077,7 @@ class EbrGame(Game):
                 privates_owned=[],
                 owned_by=None,
                 shareholders=[],
-                private_hq=company.starting,
+                hq=company.starting,
                 interest=company.initial_interest,
             )
             for key, company in COMPANIES.items()
