@@ -346,7 +346,7 @@ class AuctionState(NamedTuple):
     current_bidder: Player
     current_bid: int
     company: COMPANY
-    passed: list[Player]
+    passed: tuple[Player]
 
 
 class NormalTurnState(NamedTuple):
@@ -366,6 +366,19 @@ class CompanyState:
     interest: int = 0
     resources_to_sell: int = 0
     hq: Optional[Coordinate] = None
+
+    @classmethod
+    def copy(cls, orig: "CompanyState") -> "CompanyState":
+        return CompanyState(
+            orig.treasury,
+            orig.track_remaining,
+            [p for p in orig.privates_owned],
+            orig.owned_by,
+            [s for s in orig.shareholders],
+            orig.interest,
+            orig.resources_to_sell,
+            orig.hq,
+        )
 
 
 class EbrGameState(GameState):
@@ -396,26 +409,49 @@ class EbrGameState(GameState):
         self._player_count = player_count
         self.last_player_id = last_player_id
         self.next_player_id = next_player_id
-        self.action_cubes = copy.deepcopy(action_cubes)
+        self.action_cubes = [cube for cube in action_cubes]
         self.last_dividend_was = last_dividend_was
         self.end_game_trigger_states = copy.deepcopy(end_game_trigger_states)
         self.phase = phase
         self.stage = stage
         self.phase_state = phase_state
-        self.track = copy.deepcopy(track)
+        self.track = [Track(t.location, t.owner, t.narrow) for t in track]
         self.private_track_remaining = private_track_remaining
-        self.resources = copy.deepcopy(resources)
+        self.resources = [r for r in resources]
         self.private_track_remaining = private_track_remaining
-        self.company_state = copy.deepcopy(company_state)
-        self.bonds_remaining = copy.deepcopy(bonds_remaining)
-        self.player_cash = copy.deepcopy(player_cash)
+        self.company_state = {
+            abbr: CompanyState.copy(state) for abbr, state in company_state.items()
+        }
+        self.bonds_remaining = [b for b in bonds_remaining]
+        self.player_cash = [c for c in player_cash]
         self.active_player = active_player
-        self._previous_actions = previous_actions
+        self._previous_actions = [action for action in previous_actions]
         self._winner = -1
         self._memo = None
         # Used to check to invalidation previous actions cache
         self._cached_previous_actions: list[Hashable] = [None]
         self._cached_permitted_actions: list[Hashable] = []
+
+    def copy(self) -> "EbrGameState":
+        return EbrGameState(
+            self.player_count,
+            self.last_player_id,
+            self.next_player_id,
+            self.active_player,
+            self.action_cubes,
+            self.player_cash,
+            self.phase,
+            self.stage,
+            self.last_dividend_was,
+            self.end_game_trigger_states,
+            self.phase_state,
+            self.track,
+            self.resources,
+            self.private_track_remaining,
+            self.company_state,
+            self.bonds_remaining,
+            self.previous_actions,
+        )
 
     @property
     def player_id(self) -> int:
@@ -766,13 +802,13 @@ class EbrGame(Game):
                 self.state.phase_state.passed,
             )
         else:
-            passed = self.state.phase_state.passed
+            passed = list(self.state.phase_state.passed)
             passed.append(self.state.last_player_id)
             self.state.phase_state = AuctionState(
                 self.state.phase_state.current_bidder,
                 self.state.phase_state.current_bid,
                 co,
-                passed,
+                tuple(passed),
             )
 
         still_in_auction = [
