@@ -106,6 +106,10 @@ class Tree:
 
         self.expansion(current_action_node)
 
+        if len(current_action_node.children) == 1:
+            LOGGER.debug("Only one child")
+            return
+
         iteration = 0
 
         while iteration < self.iterations:
