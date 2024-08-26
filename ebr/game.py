@@ -432,18 +432,10 @@ class EbrGameState(GameState):
     @property
     def permitted_actions(self) -> list[Hashable]:
         if self._cached_previous_actions == self._previous_actions:
-            LOGGER.debug(
-                "Using cached actions (for actions %s)", self._previous_actions
-            )
             return self._cached_permitted_actions
 
         self._cached_permitted_actions = self._permitted_actions()
         self._cached_previous_actions = [action for action in self._previous_actions]
-        LOGGER.debug(
-            "Using new actions %s (for actions %s)",
-            self._cached_permitted_actions,
-            self._previous_actions,
-        )
         return self._cached_permitted_actions
 
     def _permitted_actions(self) -> list[Hashable]:
@@ -591,10 +583,8 @@ class EbrGameState(GameState):
 
         # can finish if at least one track laid
         assert isinstance(self.phase_state, NormalTurnState)
-        can_finish = self.phase_state.operations > 1
         buildable_locations: set[Coordinate] = set()
-        if can_finish:
-            buildable_locations.add(NO_MORE_BUILDS)
+        can_finish = self.phase_state.operations > 0
 
         if COMPANIES[company].private:
             if self.private_track_remaining == 0:
@@ -623,7 +613,7 @@ class EbrGameState(GameState):
                 for coord in excluding_existing
                 if can_spend >= self.get_track_cost(coord, True)
             ]
-            return can_afford
+            return can_afford + [NO_MORE_BUILDS] if can_finish else []
 
         # Public
         if self.company_state[company].track_remaining == 0:
@@ -650,7 +640,7 @@ class EbrGameState(GameState):
             )
             == 0
         ]
-        return permitted_build
+        return permitted_build + [NO_MORE_BUILDS] if can_finish else []
 
     def auctionable_companies(self) -> list[COMPANY]:
         return [
