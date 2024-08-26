@@ -417,7 +417,14 @@ class EbrGameState(GameState):
     @property
     def player_id(self) -> int:
         return self.last_player_id
-        pass
+
+    @property
+    def memo(self):
+        return self._memo
+
+    @memo.setter
+    def memo(self, value):
+        self._memo = value
 
     @property
     def permitted_actions(self) -> list[Hashable]:
@@ -917,7 +924,7 @@ class EbrGame(Game):
 
         if min(self.state.player_cash) < 0:
             self.state._winner = np.argmax(self.state.player_cash)
-            self.memo = "Bankruptcy"
+            self.state.memo = "Bankruptcy"
 
         public_track_end_condition = (
             len(
@@ -945,11 +952,11 @@ class EbrGame(Game):
             >= 2
         ):
             self.state._winner = np.argmax(self.state.player_cash)
-            self.memo = f"Track: {public_track_end_condition}, Shares: {all_shares_sold_end_condition}, Resources: {three_or_fewere_resources_end_condition}"
+            self.state.memo = f"2 Conditions met: Track: {public_track_end_condition}, Shares: {all_shares_sold_end_condition}, Resources: {three_or_fewere_resources_end_condition}"
 
         if self.state.last_dividend_was == 6:
             self.state._winner = np.argmax(self.state.player_cash)
-            self.memo = "6 Dividends Paid"
+            self.state.memo = "6 Dividends Paid"
 
     def get_ports_connected_to(self, co_abbr: COMPANY, company_state: CompanyState):
         port_count = 0
