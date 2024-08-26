@@ -25,6 +25,7 @@ class Tree:
         initial_state: game.game_state.GameState,
         iterations: int = 1000,
         constant: float = 1.4142135623730951,
+        act_const: float = 0.5,
         reward_model: Optional[callable] = None,
         slow_mode: bool = False,
         unload_after_play: bool = False,
@@ -41,6 +42,7 @@ class Tree:
         self.game_class = game_class
         self.reward_model = reward_model or Tree.RewardModels.reward_model_binary
         self._actions_unloaded = 0
+        self.act_const = act_const
 
         self.filename = filename
         if filename and os.path.exists(filename):
@@ -125,7 +127,7 @@ class Tree:
         current_action_node = self.get_node(state)
         self._process_turn(current_action_node, state)
 
-        best_pick = current_action_node.best_pick(0)
+        best_pick = current_action_node.best_pick(self.act_const)
         return best_pick[0]
 
     def selection(self, node: "Node") -> list["Node"]:

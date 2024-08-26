@@ -149,7 +149,6 @@ class Node:
             LOGGER.error("Index error")
             LOGGER.error("UCBS: %s", ucbs)
             LOGGER.error("Actions: %s", list(self.children.keys()))
-            LOGGER.error("best_picks: %s", best_picks)
             raise
 
     def back_propogate(self, path_to_node: list["Node"], value_d: list[int]):

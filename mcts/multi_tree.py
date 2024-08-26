@@ -21,6 +21,7 @@ def process_worker(
     reward_model,
     slow_mode,
     unload_after_play,
+    act_const=0.5,
 ):
     tree = Tree(
         None,
@@ -38,7 +39,7 @@ def process_worker(
         state = q.get(block=True)
         node = tree.get_node(state)
         tree._process_turn(node, state)
-        ucbs = node.child_ucb(0.0)
+        ucbs = node.child_ucb(act_const)
         keys = list(node.children.keys())
         new_iterations = tree.total_iterations
         result_q.put((keys, ucbs, new_iterations - last_iterations))
@@ -54,6 +55,7 @@ class MultiTree:
         initial_state,
         iterations,
         constant: float = 1.4142135623730951,
+        act_const: float = 0,
         reward_model: Optional[callable] = None,
         slow_mode: bool = False,
         unload_after_play: bool = False,
@@ -64,6 +66,7 @@ class MultiTree:
         self.initial_state = initial_state
         self.iterations = iterations
         self.constant = constant
+        self.act_const = act_const
         self.reward_model = reward_model
         self.slow_mode = slow_mode
         self.unload_after_play = unload_after_play
@@ -89,6 +92,7 @@ class MultiTree:
                     self.reward_model,
                     self.slow_mode,
                     self.unload_after_play,
+                    self.act_const,
                 ),
             )
             p.start()

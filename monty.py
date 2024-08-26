@@ -205,6 +205,12 @@ def main():
         help="Whether to use MultiTree instead of Tree, even if single job",
     )
     parser.add_argument(
+        "--act-const",
+        type=float,
+        default=0,
+        help="Constant to use when acting",
+    )
+    parser.add_argument(
         "-j", "--jobs", type=int, default=1, help="Number of parallel processes"
     )
     parser.add_argument(
@@ -271,6 +277,7 @@ def main():
                 reward_model=getattr(game_class, "reward_model", None),
                 slow_mode=args.slow,
                 unload_after_play=args.unload_played,
+                act_const=args.act_const,
             )
         else:
             tree = mcts.multi_tree.MultiTree(
@@ -282,6 +289,7 @@ def main():
                 reward_model=getattr(game_class, "reward_model", None),
                 slow_mode=args.slow,
                 unload_after_play=args.unload_played,
+                act_const=args.act_const,
                 jobs=args.jobs,
             )
         if args.action == "play":
