@@ -132,7 +132,7 @@ class Node:
         r = np.random.rand(len(q)) * 1e-6
         return q + constant * u + r
 
-    def best_pick(self, constant) -> list[int]:
+    def best_pick(self, constant) -> tuple[list[int], list[float]]:
         ucbs = self.child_ucb(constant)
         LOGGER.debug("Best pick from: %s", (ucbs.tolist()))
         # Not sure how fast this list comprehension is
@@ -144,7 +144,7 @@ class Node:
                 list(self.children.keys())[action_idx]
                 for action_idx in np.argsort(ucbs, stable=False)[::-1]
             ]
-            return best_picks
+            return best_picks, np.sort(ucbs)[::-1]
         except IndexError:
             LOGGER.error("Index error")
             LOGGER.error("UCBS: %s", ucbs)

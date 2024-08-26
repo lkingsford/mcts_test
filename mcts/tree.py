@@ -126,8 +126,8 @@ class Tree:
     def act(self, state: game.game_state.GameState) -> int:
         current_action_node = self.get_node(state)
         self._process_turn(current_action_node, state)
-
-        best_pick = current_action_node.best_pick(self.act_const)
+        best_pick, ucbs = current_action_node.best_pick(self.act_const)
+        LOGGER.info("UCBS: %s", list(zip(best_pick, ucbs)))
         return best_pick[0]
 
     def selection(self, node: "Node") -> list["Node"]:
@@ -140,7 +140,7 @@ class Tree:
                 backtrace_node = backtrace_node.parent
                 path.insert(0, backtrace_node)
         for _ in range(MAX_SELECTION_DEPTH):
-            order = node.best_pick(self.constant)
+            order, _ = node.best_pick(self.constant)
             for action in order:
                 node_to_check = node.children.get(action)
                 if node_to_check:
