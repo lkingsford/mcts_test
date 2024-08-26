@@ -114,7 +114,7 @@ class Node:
             return self._state
         else:
             # Not sure if I'm comfortable this being in a property
-            game = self.game_class.from_state(self._parent_state or self.parent.state)
+            game = self.game_class(state=(self._parent_state or self.parent.state))
             # This is getting too complicated
             if (self.parent and self.parent.state.next_automated) or self._parent_state:
                 self._state = game.apply_non_player_acts(self.action)

@@ -43,5 +43,18 @@ class GameState(ABC):
     def loggable(self) -> dict:
         pass
 
+    def add_action(self, action):
+        if "_previous_actions" in self.__dict__:
+            self._previous_actions.append(action)
+        else:
+            raise NotImplementedError
+
+    @property
+    def memo(self):
+        if "_memo" in self.__dict__:
+            return self._memo
+        else:
+            raise NotImplementedError
+
 
 GameStateType = typing.TypeVar("GameStateType", bound=GameState, covariant=True)

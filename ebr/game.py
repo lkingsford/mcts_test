@@ -51,17 +51,15 @@ TERRAIN = [
     [0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0],
 ]
 
+WIDTH = len(TERRAIN[0])
+HEIGHT = len(TERRAIN)
+
+
 FORESTS = [
-    (x, y)
-    for x in range(len(TERRAIN[0]))
-    for y in range(len(TERRAIN))
-    if TERRAIN[y][x] == FOREST
+    (x, y) for x in range(WIDTH) for y in range(HEIGHT) if TERRAIN[y][x] == FOREST
 ]
 MOUNTAINS = [
-    (x, y)
-    for x in range(len(TERRAIN[0]))
-    for y in range(len(TERRAIN))
-    if TERRAIN[y][x] == MOUNTAIN
+    (x, y) for x in range(WIDTH) for y in range(HEIGHT) if TERRAIN[y][x] == MOUNTAIN
 ]
 
 SYMBOL = {
@@ -374,10 +372,10 @@ class EbrGameState(GameState):
     def __init__(
         self,
         player_count: int,  # Should this be here? Identical over tree, but relevant if saved
-        last_player: Player,
-        next_player: Player,
+        last_player_id: Player,
+        next_player_id: Player,
         active_player: Player,
-        # Active player is the player whose turn it actually is - last/next_player are
+        # Active player is the player whose turn it actually is - last/next_player_id are
         # who is doing something (like bidding in an auction), but active_player is
         # whose turn it currently is (so, who might have started the auction)
         action_cubes: list[bool],
@@ -396,8 +394,8 @@ class EbrGameState(GameState):
     ) -> None:
         super().__init__()
         self._player_count = player_count
-        self.last_player = last_player
-        self.next_player = next_player
+        self.last_player_id = last_player_id
+        self.next_player_id = next_player_id
         self.action_cubes = copy.deepcopy(action_cubes)
         self.last_dividend_was = last_dividend_was
         self.end_game_trigger_states = copy.deepcopy(end_game_trigger_states)
@@ -414,10 +412,11 @@ class EbrGameState(GameState):
         self.active_player = active_player
         self._previous_actions = previous_actions
         self._winner = -1
+        self._memo = None
 
     @property
     def player_id(self) -> int:
-        return self.last_player
+        return self.last_player_id
         pass
 
     @property
@@ -426,7 +425,7 @@ class EbrGameState(GameState):
             return [0] + list(
                 range(
                     self.phase_state.current_bid + 1,
-                    self.player_cash[self.next_player] + 1,
+                    self.player_cash[self.next_player_id] + 1,
                 )
             )
         if self.stage == InTurnStage.REMOVE_CUBES:
@@ -464,7 +463,7 @@ class EbrGameState(GameState):
             ]
         if self.stage == InTurnStage.CHOOSE_BOND_CO:
             # Company number
-            return [i.value for i in self.companies_owned(self.next_player)]
+            return [i.value for i in self.companies_owned(self.next_player_id)]
         if self.stage == InTurnStage.CHOOSE_BOND_CERT:
             # Index of bond remaining
             return [i for i, _ in enumerate(self.bonds_remaining)]
@@ -480,10 +479,10 @@ class EbrGameState(GameState):
             return [coord for coord in FORESTS + MOUNTAINS if coord not in hqs]
         if self.stage == InTurnStage.CHOOSE_TRACK_CO:
             # Company number owned, and can afford at least 1 track
-            return [i.value for i in self.companies_owned(self.next_player)]
+            return [i.value for i in self.companies_owned(self.next_player_id)]
         if self.stage == InTurnStage.CHOOSE_TAKE_RESOURCE_CO:
             # Company number owned, if any resources can be taken
-            return [i.value for i in self.companies_owned(self.next_player)]
+            return [i.value for i in self.companies_owned(self.next_player_id)]
 
         return []
 
@@ -496,7 +495,7 @@ class EbrGameState(GameState):
             return any(
                 [
                     True
-                    for company in self.companies_owned(self.next_player)
+                    for company in self.companies_owned(self.next_player_id)
                     if len(self.resources_company_can_reach(company)) > 0
                 ]
             )
@@ -504,13 +503,13 @@ class EbrGameState(GameState):
             return any(
                 [
                     True
-                    for company in self.companies_owned(self.next_player)
+                    for company in self.companies_owned(self.next_player_id)
                     if len(self.track_company_can_build(company)) > 0
                 ]
             )
         if action == Action.ISSUE_BOND:
             return (
-                len(self.companies_owned(self.next_player)) > 0
+                len(self.companies_owned(self.next_player_id)) > 0
                 and len(self.bonds_remaining) > 0
             )
         if action == Action.PAY_DIVIDEND:
@@ -612,7 +611,8 @@ class EbrGameState(GameState):
         permitted_build = [
             coord
             for coord in can_afford
-            if MULTIPLE_TRACK_ALLOWED[TERRAIN[coord[1]][coord[0]]]
+            if TERRAIN[coord[1]][coord[0]] != 0
+            and MULTIPLE_TRACK_ALLOWED[TERRAIN[coord[1]][coord[0]]]
             or len(
                 [t for t in self.track if t and t.location == coord and not t.narrow]
             )
@@ -629,6 +629,7 @@ class EbrGameState(GameState):
             and self.company_state[company].owned_by is None
         ]
 
+    @property
     def winner(self) -> int:
         return self._winner
 
@@ -662,8 +663,8 @@ class EbrGameState(GameState):
             (company, private)
             for company, private in merge_possibilities
             if (
-                self.last_player in self.company_state[company].shareholders
-                or (self.last_player in self.company_state[private].shareholders)
+                self.last_player_id in self.company_state[company].shareholders
+                or (self.last_player_id in self.company_state[private].shareholders)
             )
             and self.private_connected_to(company, private)
         )
@@ -689,7 +690,7 @@ class EbrGameState(GameState):
 
     def get_track_cost(self, location: Coordinate, narrow: bool) -> int:
         tracks_at_location = [t for t in self.track if t and t.location == location]
-        terrain_type = TERRAIN[location[0] + 1][location[1] + 1]
+        terrain_type = TERRAIN[location[0]][location[1]]
         if terrain_type == 0:
             # Lazy, but works. Will change if there's a problem.
             # (again, prototype tool - make it work asap)
@@ -715,7 +716,7 @@ class EbrGameState(GameState):
         return [
             company
             for company in COMPANY
-            if self.last_player in self.company_state[company].shareholders
+            if self.last_player_id in self.company_state[company].shareholders
         ]
 
 
@@ -737,14 +738,14 @@ class EbrGame(Game):
         co = self.state.phase_state.company
         if bid > self.state.phase_state.current_bid:
             self.state.phase_state = AuctionState(
-                self.state.last_player,
+                self.state.last_player_id,
                 bid,
                 co,
                 self.state.phase_state.passed,
             )
         else:
             passed = self.state.phase_state.passed
-            passed.append(self.state.last_player)
+            passed.append(self.state.last_player_id)
             self.state.phase_state = AuctionState(
                 self.state.phase_state.current_bidder,
                 self.state.phase_state.current_bid,
@@ -777,10 +778,10 @@ class EbrGame(Game):
                 # IPO
                 self.next_ipo()
         else:
-            next_bidder = (self.state.last_player + 1) % self.state.player_count
+            next_bidder = (self.state.last_player_id + 1) % self.state.player_count
             while next_bidder in self.state.phase_state.passed:
                 next_bidder = (next_bidder + 1) % self.state.player_count
-            self.state.next_player = next_bidder
+            self.state.next_player_id = next_bidder
 
     def next_ipo(self):
         current_in_order = IPO_ORDER.index(self.state.phase_state.company)
@@ -788,11 +789,11 @@ class EbrGame(Game):
             # First player bought last co in ipo
             first_player = self.state.phase_state.current_bidder
             self.end_turn()
-            self.state.next_player = first_player
+            self.state.next_player_id = first_player
         else:
-            self.state.next_player = self.state.phase_state.current_bidder
+            self.state.next_player_id = self.state.phase_state.current_bidder
             self.state.phase_state = AuctionState(
-                self.state.next_player,
+                self.state.next_player_id,
                 0,
                 IPO_ORDER[current_in_order + 1],
                 [],
@@ -806,10 +807,18 @@ class EbrGame(Game):
         relevant = get_neighbors(*coord)
         relevant.append(coord)
         forest_neighbours = [
-            tile for tile in relevant if TERRAIN[tile[1]][tile[0]] == FOREST
+            tile
+            for tile in relevant
+            if tile[1] < HEIGHT
+            and tile[0] < WIDTH
+            and TERRAIN[tile[1]][tile[0]] == FOREST
         ]
         mountain_neighbours = [
-            tile for tile in relevant if TERRAIN[tile[1]][tile[0]] == MOUNTAIN
+            tile
+            for tile in relevant
+            if tile[1] < HEIGHT
+            and tile[0] < WIDTH
+            and TERRAIN[tile[1]][tile[0]] == MOUNTAIN
         ]
         for coord in forest_neighbours:
             self.state.resources.append(coord)
@@ -902,25 +911,26 @@ class EbrGame(Game):
                 if payout > 0
                 else math.floor(payout / len(company.shareholders))
             )
-            LOGGER.debug("%s Total payout: %d", abbr, payout)
-            LOGGER.debug("%s Payout per shareholder: %d", abbr, payout_per_shareholder)
             # TODO: Implement cascading bankruptcy
             for shareholder in company.shareholders:
                 self.state.player_cash[shareholder] += payout_per_shareholder
 
         if min(self.state.player_cash) < 0:
-            self.state.winner = np.argmax(self.state.player_cash)
+            self.state._winner = np.argmax(self.state.player_cash)
+            self.memo = "Bankruptcy"
 
         public_track_end_condition = (
             len(
-                c.track_remaining == 0
-                for abbr, c in self.state.company_state.items()
-                if COMPANIES[abbr].private == False
+                [
+                    c.track_remaining == 0
+                    for abbr, c in self.state.company_state.items()
+                    if COMPANIES[abbr].private == False
+                ]
             )
             >= 2
         )
         all_shares_sold_end_condition = all(
-            len(c.shareholders) == COMPANIES[abbr].num_shares or c.owned_by
+            len(c.shareholders) == COMPANIES[abbr].stock_available or c.owned_by
             for abbr, c in self.state.company_state.items()
         )
         three_or_fewere_resources_end_condition = len(self.state.resources) <= 3
@@ -934,7 +944,12 @@ class EbrGame(Game):
             )
             >= 2
         ):
-            self.state.winner = np.argmax(self.state.player_cash)
+            self.state._winner = np.argmax(self.state.player_cash)
+            self.memo = f"Track: {public_track_end_condition}, Shares: {all_shares_sold_end_condition}, Resources: {three_or_fewere_resources_end_condition}"
+
+        if self.state.last_dividend_was == 6:
+            self.state._winner = np.argmax(self.state.player_cash)
+            self.memo = "6 Dividends Paid"
 
     def get_ports_connected_to(self, co_abbr: COMPANY, company_state: CompanyState):
         port_count = 0
@@ -960,7 +975,7 @@ class EbrGame(Game):
             while len(connected_track) > 0:
                 track_coord = connected_track.pop()
                 visited_track.add(track_coord)
-                track = [t for t in self.track if t and t.location == track_coord]
+                track = [t for t in self.state.track if t and t.location == track_coord]
                 # The Os. They're very big Os indeed. :s
                 if any(t for t in track if t.narrow and t.location in PORTS):
                     port_count += 1
@@ -1055,26 +1070,27 @@ class EbrGame(Game):
         else:
             self.state.phase = Phase.AUCTION
             self.state.phase_state = AuctionState(
-                self.state.last_player, 0, company, []
+                self.state.last_player_id, 0, company, []
             )
 
     def choose_hq(self, action):
         self.state.company_state[self.state.phase_state.company].hq = Coordinate(action)
         self.state.phase = Phase.AUCTION
         self.state.phase_state = AuctionState(
-            self.state.last_player, 0, self.state.phase_state.company, []
+            self.state.last_player_id, 0, self.state.phase_state.company, []
         )
 
+    @classmethod
     def from_state(cls, state: GameState) -> "Game":
         # Separate to allow abstract method to work
         assert isinstance(state, EbrGameState)
         return cls(state)
 
     def end_turn(self):
-        self.state.next_player = (
+        self.state.next_player_id = (
             self.state.active_player + 1
         ) % self.state.player_count
-        self.state.active_player = self.state.next_player
+        self.state.active_player = self.state.next_player_id
         self.state.phase_state = None
         self.state.phase = Phase.NORMAL_TURN
         self.state.stage = InTurnStage.REMOVE_CUBES
@@ -1084,7 +1100,9 @@ class EbrGame(Game):
         return -1
 
     def act(self, action) -> GameState:
-        self.state.last_player = self.state.next_player
+        self.state.add_action(action)
+
+        self.state.last_player_id = self.state.next_player_id
         if (
             self.state.phase == Phase.INITIAL_AUCTION
             or self.state.phase == Phase.AUCTION
@@ -1100,6 +1118,7 @@ class EbrGame(Game):
             self.pay_dividends()
             winner = np.argmax(self.state.player_cash)
             self.state._winner = winner
+            self.state.memo = "Stalemate"
 
     def is_game_over(self, state: GameState) -> bool:
         return False
@@ -1132,17 +1151,17 @@ class EbrGame(Game):
         phase = Phase.INITIAL_AUCTION
         auction_state = AuctionState(0, 0, COMPANY.LW, [])
 
-        last_player = 0
-        next_player = auction_state.current_bidder
+        last_player_id = 0
+        next_player_id = auction_state.current_bidder
 
         bonds_remaining = copy.deepcopy(BONDS)
         resources: list[Coordinate] = []
-        previous_actions = [255]
+        previous_actions = []
         return EbrGameState(
             player_count=player_count,
-            last_player=last_player,
-            next_player=next_player,
-            active_player=last_player,
+            last_player_id=last_player_id,
+            next_player_id=next_player_id,
+            active_player=last_player_id,
             action_cubes=action_cubes,
             player_cash=player_cash,
             phase=phase,
