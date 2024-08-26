@@ -413,6 +413,9 @@ class EbrGameState(GameState):
         self._previous_actions = previous_actions
         self._winner = -1
         self._memo = None
+        # Used to check to invalidation previous actions cache
+        self._cached_previous_actions: list[Hashable] = [None]
+        self._cached_permitted_actions: list[Hashable] = []
 
     @property
     def player_id(self) -> int:
@@ -428,6 +431,22 @@ class EbrGameState(GameState):
 
     @property
     def permitted_actions(self) -> list[Hashable]:
+        if self._cached_previous_actions == self._previous_actions:
+            LOGGER.debug(
+                "Using cached actions (for actions %s)", self._previous_actions
+            )
+            return self._cached_permitted_actions
+
+        self._cached_permitted_actions = self._permitted_actions()
+        self._cached_previous_actions = [action for action in self._previous_actions]
+        LOGGER.debug(
+            "Using new actions %s (for actions %s)",
+            self._cached_permitted_actions,
+            self._previous_actions,
+        )
+        return self._cached_permitted_actions
+
+    def _permitted_actions(self) -> list[Hashable]:
         if self.phase == Phase.INITIAL_AUCTION or self.phase == Phase.AUCTION:
             return [0] + list(
                 range(
