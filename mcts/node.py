@@ -138,12 +138,19 @@ class Node:
         # Not sure how fast this list comprehension is
         # Child value is never set for automated turns - so this shold
         # still work
-        best_picks = [
-            # I don't like this!
-            list(self.children.keys())[action_idx]
-            for action_idx in np.argsort(ucbs, stable=False)[::-1]
-        ]
-        return best_picks
+        try:
+            best_picks = [
+                # I don't like this!
+                list(self.children.keys())[action_idx]
+                for action_idx in np.argsort(ucbs, stable=False)[::-1]
+            ]
+            return best_picks
+        except IndexError:
+            LOGGER.error("Index error")
+            LOGGER.error("UCBS: %s", ucbs)
+            LOGGER.error("Actions: %s", list(self.children.keys()))
+            LOGGER.error("best_picks: %s", best_picks)
+            raise
 
     def back_propogate(self, path_to_node: list["Node"], value_d: list[int]):
         """Propogate the value

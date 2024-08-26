@@ -531,6 +531,7 @@ class EbrGameState(GameState):
 
     def resources_company_can_reach(self, company: COMPANY) -> list[Coordinate]:
         resources: list[Coordinate] = []
+
         if COMPANIES[company].private:
             hq = self.company_state[company].hq
             assert hq
@@ -569,6 +570,13 @@ class EbrGameState(GameState):
         else:
             can_spend = self.company_state[company].treasury
 
+        # can finish if at least one track laid
+        assert isinstance(self.phase_state, NormalTurnState)
+        can_finish = self.phase_state.operations > 1
+        buildable_locations: set[Coordinate] = set()
+        if can_finish:
+            buildable_locations.add(NO_MORE_BUILDS)
+
         if COMPANIES[company].private:
             if self.private_track_remaining == 0:
                 return []
@@ -576,7 +584,6 @@ class EbrGameState(GameState):
             assert hq
             connected_track = get_neighbors(*hq)
             visited_track = set([hq])
-            buildable_locations: set[Coordinate] = set()
             while len(connected_track) > 0:
                 track_coord = connected_track.pop()
                 visited_track.add(track_coord)
@@ -602,7 +609,6 @@ class EbrGameState(GameState):
         # Public
         if self.company_state[company].track_remaining == 0:
             return []
-        buildable_locations: set[Coordinate] = set()
         company_track = [
             track.location for track in self.track if track.owner == company
         ]
@@ -698,7 +704,7 @@ class EbrGameState(GameState):
     def get_track_cost(self, location: Coordinate, narrow: bool) -> int:
         tracks_at_location = [t for t in self.track if t and t.location == location]
         terrain_type = TERRAIN[location[0]][location[1]]
-        if terrain_type == 0:
+        if terrain_type == 0 or location[0] > WIDTH or location[1] > HEIGHT:
             # Lazy, but works. Will change if there's a problem.
             # (again, prototype tool - make it work asap)
             return 99999
@@ -877,6 +883,8 @@ class EbrGame(Game):
         ]
         self.state.action_cubes[relevant_spaces[0]] = True
         eff_action = Action(action)
+        self.state.memo = f"Taking action: {eff_action}"
+        self.state.memo += f" - Player treasury: {self.state.player_cash}"
         if eff_action == Action.ISSUE_BOND:
             self.state.stage = InTurnStage.CHOOSE_BOND_CO
         elif eff_action == Action.AUCTION_SHARE:
@@ -1107,6 +1115,7 @@ class EbrGame(Game):
         return -1
 
     def act(self, action) -> GameState:
+        self.state.memo = None
         self.state.add_action(action)
 
         self.state.last_player_id = self.state.next_player_id
