@@ -97,8 +97,15 @@ def train(
                     time.process_time() - time_before,
                 )
                 game.act(action)
+                if game.state.memo is not None:
+                    LOGGER.info("Memo: %s", game.state.memo)
                 action_log.append(
-                    ActionLog(action, game.state.last_player_id, state.loggable(), None)
+                    ActionLog(
+                        action,
+                        game.state.last_player_id,
+                        state.loggable(),
+                        game.state.memo,
+                    )
                 )
 
             if report_folder:
@@ -245,7 +252,7 @@ def main():
         human_play = nt.human_play.human_play
         game = game_class()
     elif args.game == "ebr":
-        state_class = ebr.game.GameState
+        state_class = ebr.game.EbrGameState
         game_class = ebr.game.EbrGame
         human_play = ebr.human_play.human_play
         game = game_class(player_count=4)
