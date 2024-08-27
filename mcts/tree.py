@@ -102,7 +102,13 @@ class Tree:
         self, current_action_node: Node, state: game.game_state.GameState
     ):
         if self.unload_after_play:
-            self.reroot(current_action_node)
+            # Another crappy hack
+            # TODO: make this not a hack
+            # Sometimes - root doesn't reflect the actual state
+            if current_action_node.state.previous_actions != state.previous_actions:
+                self.new_root(state)
+            else:
+                self.reroot(current_action_node)
 
         self.expansion(current_action_node)
 
