@@ -719,7 +719,15 @@ class EbrGameState(GameState):
         return self._player_count
 
     def loggable(self) -> dict:
-        pass
+        return {
+            "player_count": self.player_count,
+            "last_player_id": self.last_player_id,
+            "next_player_id": self.next_player_id,
+            "active_player": self.active_player,
+            "action_cubes": self.action_cubes,
+            "player_cash": self.player_cash,
+            "winner": int(self._winner),
+        }
 
     @property
     def previous_actions(self) -> list[int]:
@@ -1227,7 +1235,7 @@ class EbrGame(Game):
             winner = next(
                 player
                 for player in np.argsort(self.state.player_cash)
-                if player != self.state.last_player_id
+                if player != self.state.next_player_id
             )
             self.state._winner = winner
             self.state.memo_end_game_state("Stalemate")

@@ -163,7 +163,8 @@ class Tree:
                         break
         LOGGER.warning("Failed to select within MAX_SELECTION_DEPTH")
         # This normally means that the tree has been fully explored
-        LOGGER.warning("%s", json.dumps(node.state.loggable()))
+        loggable = node.state.loggable()
+        LOGGER.warning("%s", json.dumps(loggable))
         return None
 
     def expansion(self, node: "Node"):
