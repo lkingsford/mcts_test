@@ -3,6 +3,7 @@
 
 import argparse
 from datetime import datetime
+from enum import Enum
 import logging
 import threading
 import time
@@ -45,12 +46,16 @@ class ActionLogEncoder(json.JSONEncoder):
             return float(obj)
         if isinstance(obj, np.ndarray):
             return obj.tolist()
+        if isinstance(obj, Enum):
+            return str(obj)
+        if isinstance(obj, set):
+            return list(obj)
         if isinstance(obj, ActionLog):
             return {
                 "action": super(ActionLogEncoder, self).default(obj.action),
                 "player_id": obj.player_id,
                 "state": obj.state,
-                "memo": obj.memo,
+                "memo": super(ActionLogEncoder, self).default(obj.memo),
             }
         return super(ActionLogEncoder, self).default(obj)
 
