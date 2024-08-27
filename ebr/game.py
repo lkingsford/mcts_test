@@ -495,15 +495,21 @@ class EbrGameState(GameState):
                 )
             )
         if self.stage == InTurnStage.REMOVE_CUBES:
-            return list(
-                set(
-                    [
-                        ACTION_CUBE_SPACES[idx].value
-                        for idx in range(len(self.action_cubes))
-                        if self.action_cubes[idx]
-                    ]
-                )
+            can_take_action = [
+                self.current_player_can_take_action(action) for action in Action
+            ]
+            result = set(
+                [
+                    ACTION_CUBE_SPACES[idx].value
+                    for idx in range(len(self.action_cubes))
+                    if self.action_cubes[idx]
+                    and (
+                        len(can_take_action) != 1
+                        and can_take_action[0] != ACTION_CUBE_SPACES[idx].value
+                    )
+                ]
             )
+            return list(result)
         if self.stage == InTurnStage.TAKE_ACTION:
             assert isinstance(self.phase_state, NormalTurnState)
             return list(
@@ -630,9 +636,12 @@ class EbrGameState(GameState):
             can_spend = self.company_state[company].treasury
 
         # can finish if at least one track laid
-        assert isinstance(self.phase_state, NormalTurnState)
+        if isinstance(self.phase_state, NormalTurnState):
+            can_finish = self.phase_state.operations > 0
+        else:
+            can_finish = False
+
         buildable_locations: set[Coordinate] = set()
-        can_finish = self.phase_state.operations > 0
 
         if COMPANIES[company].private:
             if self.private_track_remaining == 0:
@@ -1209,7 +1218,12 @@ class EbrGame(Game):
     def check_for_stalemate(self):
         if self.state.winner == -1 and len(self.state.permitted_actions) == 0:
             self.pay_dividends()
-            winner = np.argmax(self.state.player_cash)
+            # Stalemated player can't win
+            winner = next(
+                player
+                for player in np.argsort(self.state.player_cash)
+                if player != self.state.last_player_id
+            )
             self.state._winner = winner
             self.state.memo_end_game_state("Stalemate")
 
