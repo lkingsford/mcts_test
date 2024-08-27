@@ -105,7 +105,7 @@ class MultiTree:
             for key, ucb in zip(value_group[0], value_group[1]):
                 array_index = permitted_actions.index(key)
                 sums[array_index] += ucb
-        LOGGER.debug("Sums of ucbs: %s", str(sums))
+        LOGGER.info("UCBS: %s", list(zip(permitted_actions, sums)))
         return permitted_actions[int(np.argmax(sums))]
 
     def act(self, state: GameState) -> int:
