@@ -821,7 +821,7 @@ class EbrGame(Game):
         # Looks too complex - but if anybody has bidded and there is only one
         # player, or if nobody has bidded and everybody passed, then end auction
         if (self.state.phase_state.current_bid > 0 and len(still_in_auction) == 1) or (
-            len(self.state.phase_state.passed) == self.state.player_count
+            len(still_in_auction) == 0
         ):
             # End auction
             winner = self.state.phase_state.current_bidder
