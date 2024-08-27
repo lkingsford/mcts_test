@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from enum import Enum
 import itertools
 import math
@@ -427,7 +427,7 @@ class EbrGameState(GameState):
         self.active_player = active_player
         self._previous_actions = [action for action in previous_actions]
         self._winner = -1
-        self._memo = None
+        self._memo = {}
         # Used to check to invalidation previous actions cache
         self._cached_previous_actions: list[Hashable] = [None]
         self._cached_permitted_actions: list[Hashable] = []
@@ -461,9 +461,21 @@ class EbrGameState(GameState):
     def memo(self):
         return self._memo
 
-    @memo.setter
-    def memo(self, value):
-        self._memo = value
+    def add_memo(self, key, value):
+        self._memo[key] = value
+
+    def memo_end_game_state(self, reason):
+        self._memo["End Game Reason"] = reason
+        self._memo["End Game Player Treasury"] = self.player_cash
+        self._memo["End Game Last Dividend"] = self.last_dividend_was
+        self._memo["End Game Bonds Remaining"] = self.bonds_remaining
+        self._memo["End Game Track"] = self.track
+        self._memo["End Game Company State"] = {
+            company.name: asdict(state) for company, state in self.company_state.items()
+        }
+
+    def reset_memo(self):
+        self._memo = {}
 
     @property
     def permitted_actions(self) -> list[Hashable]:
@@ -828,6 +840,17 @@ class EbrGame(Game):
             self.state.company_state[co].shareholders.append(winner)
             self.state.company_state[co].treasury += self.state.phase_state.current_bid
             self.state.player_cash[winner] -= self.state.phase_state.current_bid
+            self.state.add_memo(
+                "Auction Started By",
+                (
+                    self.state.active_player
+                    if self.state.phase == Phase.AUCTION
+                    else "IPO"
+                ),
+            )
+            self.state.add_memo("Auction Winner", winner)
+            self.state.add_memo("Auction Company", co)
+            self.state.add_memo("Auction Price", self.state.phase_state.current_bid)
             if COMPANIES[co].private:
                 self.expand_resources(co)
             if self.state.phase == Phase.AUCTION:
@@ -910,6 +933,7 @@ class EbrGame(Game):
         return
 
     def remove_cube(self, action):
+        self.state.add_memo("Removing Cube", Action(action).name)
         relevant_spaces = [
             i
             for i, space in enumerate(ACTION_CUBE_SPACES)
@@ -928,8 +952,8 @@ class EbrGame(Game):
         ]
         self.state.action_cubes[relevant_spaces[0]] = True
         eff_action = Action(action)
-        self.state.memo = f"Taking action: {eff_action}"
-        self.state.memo += f" - Player treasury: {self.state.player_cash}"
+        self.state.add_memo("Choose Action", eff_action)
+        self.state.add_memo("Player treasury", self.state.player_cash)
         if eff_action == Action.ISSUE_BOND:
             self.state.stage = InTurnStage.CHOOSE_BOND_CO
         elif eff_action == Action.AUCTION_SHARE:
@@ -977,7 +1001,7 @@ class EbrGame(Game):
 
         if min(self.state.player_cash) < 0:
             self.state._winner = np.argmax(self.state.player_cash)
-            self.state.memo = "Bankruptcy"
+            self.state.memo_end_game_state("Bankruptcy")
 
         public_track_end_condition = (
             len(
@@ -1005,11 +1029,13 @@ class EbrGame(Game):
             >= 2
         ):
             self.state._winner = np.argmax(self.state.player_cash)
-            self.state.memo = f"2 Conditions met: Track: {public_track_end_condition}, Shares: {all_shares_sold_end_condition}, Resources: {three_or_fewere_resources_end_condition}"
+            self.state.memo_end_game_state(
+                f"2 Conditions met: Track: {public_track_end_condition}, Shares: {all_shares_sold_end_condition}, Resources: {three_or_fewere_resources_end_condition}",
+            )
 
         if self.state.last_dividend_was == 6:
             self.state._winner = np.argmax(self.state.player_cash)
-            self.state.memo = "6 Dividends Paid"
+            self.state.memo_end_game_state("6 Dividends Paid")
 
     def get_ports_connected_to(self, co_abbr: COMPANY, company_state: CompanyState):
         port_count = 0
@@ -1098,6 +1124,7 @@ class EbrGame(Game):
             self.end_turn()
             return
 
+        track_cost = 0
         company = self.state.company_state[self.state.phase_state.company]
         coord = Coordinate(action)
         assert isinstance(self.state.phase_state, NormalTurnState)
@@ -1118,6 +1145,10 @@ class EbrGame(Game):
             company=self.state.phase_state.company,
             operations=self.state.phase_state.operations + 1,
         )
+
+        self.state.add_memo("Build track company", company)
+        self.state.add_memo("Build track location", coord)
+        self.state.add_memo("Build track cost", track_cost)
 
         if self.state.phase_state.operations >= BUILD_ACTIONS:
             self.end_turn()
@@ -1160,7 +1191,7 @@ class EbrGame(Game):
         return -1
 
     def act(self, action) -> GameState:
-        self.state.memo = None
+        self.state.reset_memo()
         self.state.add_action(action)
 
         self.state.last_player_id = self.state.next_player_id
@@ -1179,7 +1210,7 @@ class EbrGame(Game):
             self.pay_dividends()
             winner = np.argmax(self.state.player_cash)
             self.state._winner = winner
-            self.state.memo = "Stalemate"
+            self.state.memo_end_game_state("Stalemate")
 
     def is_game_over(self, state: GameState) -> bool:
         return False
