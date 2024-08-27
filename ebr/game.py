@@ -771,11 +771,11 @@ class EbrGameState(GameState):
 
     def get_track_cost(self, location: Coordinate, narrow: bool) -> int:
         tracks_at_location = [t for t in self.track if t and t.location == location]
-        if location[0] > WIDTH or location[1] > HEIGHT:
+        if location[0] >= WIDTH or location[1] >= HEIGHT:
             # Lazy, but works. Will change if there's a problem.
             # (again, prototype tool - make it work asap)
             return 99999
-        terrain_type = TERRAIN[location[0]][location[1]]
+        terrain_type = TERRAIN[location[1]][location[0]]
         if terrain_type == 0:
             return 99999
         feature_cost = sum(
@@ -982,7 +982,6 @@ class EbrGame(Game):
             self.state.stage = InTurnStage.CHOOSE_TRACK_CO
 
     def pay_dividends(self):
-        self.state.last_dividend_was += 1
         for abbr, company in self.state.company_state.items():
             assert company
             if len(company.shareholders) == 0 or company.owned_by is not None:
@@ -1012,6 +1011,8 @@ class EbrGame(Game):
             # TODO: Implement cascading bankruptcy
             for shareholder in company.shareholders:
                 self.state.player_cash[shareholder] += payout_per_shareholder
+
+        self.state.last_dividend_was += 1
 
         if min(self.state.player_cash) < 0:
             self.state._winner = np.argmax(self.state.player_cash)
@@ -1160,7 +1161,7 @@ class EbrGame(Game):
             operations=self.state.phase_state.operations + 1,
         )
 
-        self.state.add_memo("Build track company", company)
+        self.state.add_memo("Build track company", asdict(company))
         self.state.add_memo("Build track location", coord)
         self.state.add_memo("Build track cost", track_cost)
 
