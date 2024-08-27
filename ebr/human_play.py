@@ -50,6 +50,7 @@ def human_play(game: EbrGame, tree):
                 print_holdings(game.state)
                 print_cube_display(game.state)
                 print_companies(game.state)
+                print([(i, j) for i, j in enumerate(Action)])
                 print(f"Player is {game.state.next_player_id}")
                 print(f"Permitted actions: {game.state.permitted_actions}")
                 if game.state.stage == InTurnStage.REMOVE_ADD_CUBES:

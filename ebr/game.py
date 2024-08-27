@@ -663,12 +663,14 @@ class EbrGameState(GameState):
                     )
             narrow_gauge = [track.location for track in self.track if track.narrow]
             excluding_existing = buildable_locations - set(narrow_gauge)
-            can_afford = [
+            options = [
                 coord
                 for coord in excluding_existing
                 if can_spend >= self.get_track_cost(coord, True)
             ]
-            return can_afford + [NO_MORE_BUILDS] if can_finish else []
+            if can_finish:
+                options.append(NO_MORE_BUILDS)
+            return options
 
         # Public
         if self.company_state[company].track_remaining == 0:
@@ -685,7 +687,7 @@ class EbrGameState(GameState):
             if can_spend >= self.get_track_cost(coord, False)
         ]
         # permitted if allowed multiple or no other
-        permitted_build = [
+        options = [
             coord
             for coord in can_afford
             if TERRAIN[coord[1]][coord[0]] != 0
@@ -695,7 +697,9 @@ class EbrGameState(GameState):
             )
             == 0
         ]
-        return permitted_build + [NO_MORE_BUILDS] if can_finish else []
+        if can_finish:
+            options.append(NO_MORE_BUILDS)
+        return options
 
     def auctionable_companies(self) -> list[COMPANY]:
         return [
@@ -767,10 +771,12 @@ class EbrGameState(GameState):
 
     def get_track_cost(self, location: Coordinate, narrow: bool) -> int:
         tracks_at_location = [t for t in self.track if t and t.location == location]
-        terrain_type = TERRAIN[location[0]][location[1]]
-        if terrain_type == 0 or location[0] > WIDTH or location[1] > HEIGHT:
+        if location[0] > WIDTH or location[1] > HEIGHT:
             # Lazy, but works. Will change if there's a problem.
             # (again, prototype tool - make it work asap)
+            return 99999
+        terrain_type = TERRAIN[location[0]][location[1]]
+        if terrain_type == 0:
             return 99999
         feature_cost = sum(
             [
