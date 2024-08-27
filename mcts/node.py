@@ -139,6 +139,13 @@ class Node:
         # Child value is never set for automated turns - so this shold
         # still work
         try:
+            if len(self.children) == 1:
+                # This is a hacky fix - I haven't found the root cause:
+                # Sometimes, when you have a single child and it's a tuple,
+                # there's a different amount of child_visit_count/value to
+                # the amount of children. I think it might be in expansion, but
+                # it's hard to recreate.
+                return list(self.children.keys()), ucbs[::1]
             best_picks = [
                 # I don't like this!
                 list(self.children.keys())[action_idx]
