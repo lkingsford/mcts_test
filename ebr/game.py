@@ -640,13 +640,14 @@ class EbrGameState(GameState):
             hq = self.company_state[company].hq
             assert hq
             connected_track = get_neighbors(*hq)
-            visited_track = set([hq])
+            connected_track.append(hq)
+            visited_track: set[Coordinate] = set()
             while len(connected_track) > 0:
                 track_coord = connected_track.pop()
                 visited_track.add(track_coord)
                 track = [t for t in self.track if t and t.location == track_coord]
                 if any(t.narrow for t in track):
-                    buildable_locations.union(set(get_neighbors(*track_coord)))
+                    buildable_locations.update(set(get_neighbors(*track_coord)))
                     connected_track.extend(
                         [
                             i
