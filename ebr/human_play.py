@@ -52,14 +52,18 @@ def human_play(game: EbrGame, tree):
                 print_companies(game.state)
                 print(f"Player is {game.state.next_player_id}")
                 print(f"Permitted actions: {game.state.permitted_actions}")
-                if game.state.stage == InTurnStage.REMOVE_CUBES:
-                    cube_to_remove = input("Cube to remove: ")
-                    if int(cube_to_remove) in game.state.permitted_actions:
-                        action = int(cube_to_remove)
-                elif game.state.stage == InTurnStage.TAKE_ACTION:
-                    cube_to_add = input("Cube to add: ")
-                    if int(cube_to_add) in game.state.permitted_actions:
-                        action = int(cube_to_add)
+                if game.state.stage == InTurnStage.REMOVE_ADD_CUBES:
+                    remove = None
+                    add = None
+                    while remove == None or add == None:
+                        try:
+                            cube_to_remove = input("Cube to remove, add: ")
+                            remove, add = (
+                                int(cube) for cube in cube_to_remove.split(",")
+                            )
+                        except:
+                            pass
+                        action = (remove, add)
                 elif game.state.stage == InTurnStage.BUILDING_TRACK:
                     print_terrain(TERRAIN, game)
                     x = None

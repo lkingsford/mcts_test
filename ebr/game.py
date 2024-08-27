@@ -277,8 +277,7 @@ class EndGameReason(Enum):
 
 
 class InTurnStage(Enum):
-    REMOVE_CUBES = 0
-    TAKE_ACTION = 1
+    REMOVE_ADD_CUBES = 0
     BUILDING_TRACK = 2
     TAKE_RESOURCES = 3
     CHOOSE_BOND_CO = 4
@@ -350,7 +349,6 @@ class AuctionState(NamedTuple):
 
 
 class NormalTurnState(NamedTuple):
-    action_removed: Optional[int] = None
     bond_co: Optional[int] = None
     company: Optional[COMPANY] = None
     operations: Optional[int] = 0  # Amount of builds or takes done so far
@@ -494,36 +492,35 @@ class EbrGameState(GameState):
                     self.player_cash[self.next_player_id] + 1,
                 )
             )
-        if self.stage == InTurnStage.REMOVE_CUBES:
-            can_take_action = [
-                self.current_player_can_take_action(action) for action in Action
-            ]
-            result = set(
+        if self.stage == InTurnStage.REMOVE_ADD_CUBES:
+            action_cubes_to_remove = set(
                 [
-                    ACTION_CUBE_SPACES[idx].value
+                    ACTION_CUBE_SPACES[idx]
                     for idx in range(len(self.action_cubes))
                     if self.action_cubes[idx]
-                    and (
-                        len(can_take_action) != 1
-                        and can_take_action[0] != ACTION_CUBE_SPACES[idx].value
+                ]
+            )
+            possible_actions_to_take = set(
+                [
+                    action
+                    for action in Action
+                    if self.current_player_can_take_action(action)
+                    and any(
+                        space
+                        for space, a in enumerate(ACTION_CUBE_SPACES)
+                        if a == action and not self.action_cubes[space]
                     )
                 ]
             )
-            return list(result)
-        if self.stage == InTurnStage.TAKE_ACTION:
-            assert isinstance(self.phase_state, NormalTurnState)
-            return list(
-                set(
-                    [
-                        ACTION_CUBE_SPACES[idx].value
-                        for idx in range(len(self.action_cubes))
-                        if not self.action_cubes[idx]
-                        and not ACTION_CUBE_SPACES[idx].value
-                        == self.phase_state.action_removed
-                        and self.current_player_can_take_action(ACTION_CUBE_SPACES[idx])
-                    ]
+            options = [
+                (remove.value, take.value)
+                for remove, take in itertools.product(
+                    action_cubes_to_remove, possible_actions_to_take
                 )
-            )
+                if remove != take
+            ]
+            LOGGER.debug(options)
+            return options
         if self.stage == InTurnStage.BUILDING_TRACK:
             # List of places the track can be placed
             # Also, cancel, if at least one move done
@@ -918,10 +915,9 @@ class EbrGame(Game):
             self.state.resources.append(coord)
 
     def game_action(self, action):
-        if self.state.stage == InTurnStage.REMOVE_CUBES:
-            self.remove_cube(action)
-        elif self.state.stage == InTurnStage.TAKE_ACTION:
-            self.take_action(action)
+        if self.state.stage == InTurnStage.REMOVE_ADD_CUBES:
+            self.remove_cube(action[0])
+            self.take_action(action[1])
         elif self.state.stage == InTurnStage.CHOOSE_BOND_CO:
             self.choose_bond_co(action)
         elif self.state.stage == InTurnStage.CHOOSE_BOND_CERT:
@@ -950,16 +946,18 @@ class EbrGame(Game):
             if space.value == action and self.state.action_cubes[i]
         ]
         self.state.action_cubes[relevant_spaces[0]] = False
-        self.state.stage = InTurnStage.TAKE_ACTION
-        self.state.phase_state = NormalTurnState(action_removed=action)
         return
 
     def take_action(self, action):
-        relevant_spaces = [
-            i
-            for i, space in enumerate(ACTION_CUBE_SPACES)
-            if space.value == action and not self.state.action_cubes[i]
+        available_spaces = [
+            i for i in range(len(ACTION_CUBE_SPACES)) if not self.state.action_cubes[i]
         ]
+        action_spaces = [
+            i
+            for i in range(len(ACTION_CUBE_SPACES))
+            if ACTION_CUBE_SPACES[i] == Action(action)
+        ]
+        relevant_spaces = [i for i in action_spaces if i in available_spaces]
         self.state.action_cubes[relevant_spaces[0]] = True
         eff_action = Action(action)
         self.state.add_memo("Choose Action", eff_action)
@@ -1194,7 +1192,7 @@ class EbrGame(Game):
         self.state.active_player = self.state.next_player_id
         self.state.phase_state = None
         self.state.phase = Phase.NORMAL_TURN
-        self.state.stage = InTurnStage.REMOVE_CUBES
+        self.state.stage = InTurnStage.REMOVE_ADD_CUBES
         self.winner = self.update_end_game()
 
     def update_end_game(self):
