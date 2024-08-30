@@ -1,4 +1,5 @@
 from ebr.game import *
+from mcts.tree import Tree
 
 
 def print_holdings(game_state: EbrGameState):
@@ -24,7 +25,25 @@ def print_companies(game_state: EbrGameState):
         print(f"{i}: {company}")
 
 
-def human_play(game: EbrGame, tree):
+def tree_input(prompt: str, tree: Tree, game_state: EbrGameState) -> str:
+    """
+    Custom input function that accepts a prompt and a tree.
+
+    If the input is 'a', return result of tree.act for the input instead of the input.
+    """
+    while True:
+        user_input = input(prompt)
+        if user_input == "a":
+            action = tree.act(game_state)
+            if isinstance(action, tuple):
+                return ",".join(str(x) for x in action)
+            else:
+                return str(action)
+        else:
+            return user_input
+
+
+def human_play(game: EbrGame, tree: Tree):
     done = False
     while not done:
         print("--------")
@@ -40,8 +59,10 @@ def human_play(game: EbrGame, tree):
                 print(
                     f"Bid for {game.state.phase_state.company.name}: {game.state.phase_state.current_bid} ({game.state.phase_state.current_bidder})"
                 )
-                bid = input(
-                    f"Player {game.state.next_player_id} (£{game.state.player_cash[game.state.next_player_id]}): "
+                bid = tree_input(
+                    f"Player {game.state.next_player_id} (£{game.state.player_cash[game.state.next_player_id]}): ",
+                    tree,
+                    game.state,
                 )
                 if int(bid) in game.state.permitted_actions:
                     action = int(bid)
@@ -58,7 +79,9 @@ def human_play(game: EbrGame, tree):
                     add = None
                     while remove == None or add == None:
                         try:
-                            cube_to_remove = input("Cube to remove, add: ")
+                            cube_to_remove = tree_input(
+                                "Cube to remove, add: ", tree, game.state
+                            )
                             remove, add = (
                                 int(cube) for cube in cube_to_remove.split(",")
                             )
@@ -71,7 +94,9 @@ def human_play(game: EbrGame, tree):
                     y = None
                     while x == None or y == None:
                         try:
-                            build_loc = input("X,Y to build track")
+                            build_loc = tree_input(
+                                "X,Y to build track", tree, game.state
+                            )
                             x, y = (int(coord) for coord in build_loc.split(","))
                         except:
                             pass
@@ -82,7 +107,7 @@ def human_play(game: EbrGame, tree):
                     y = None
                     while x == None or y == None:
                         try:
-                            build_loc = input("X,Y of HQ")
+                            build_loc = tree_input("X,Y of HQ", tree, game.state)
                             x, y = (int(coord) for coord in build_loc.split(","))
                         except:
                             pass
@@ -93,7 +118,9 @@ def human_play(game: EbrGame, tree):
                     y = None
                     while x == None or y == None:
                         try:
-                            take_loc = input("X,Y to take resource from")
+                            take_loc = tree_input(
+                                "X,Y to take resource from", tree, game.state
+                            )
                             x, y = (int(coord) for coord in take_loc.split(","))
                         except:
                             pass
@@ -103,7 +130,7 @@ def human_play(game: EbrGame, tree):
                     print("Merge options")
                     for i, j in enumerate(merge_options):
                         print(f"{i}: {j}")
-                    merge_option = input("Choose merge option")
+                    merge_option = tree_input("Choose merge option", tree, game.state)
                     action = int(merge_option)
                 elif game.state.stage == InTurnStage.CHOOSE_AUCTION:
                     print_holdings(game.state)
@@ -115,7 +142,9 @@ def human_play(game: EbrGame, tree):
                     ]
                     for i, j in enumerate(auctions_available):
                         print(f"{i}: {j}")
-                    auction_option = input("Choose share to auction")
+                    auction_option = tree_input(
+                        "Choose share to auction", tree, game.state
+                    )
                     action = int(auction_option)
                 elif game.state.stage == InTurnStage.CHOOSE_BOND_CO:
                     companies_held = [
@@ -125,24 +154,30 @@ def human_play(game: EbrGame, tree):
                     ]
                     for i, j in enumerate(companies_held):
                         print(f"{i}: {j}")
-                    bond_input = input("Choose company to issue bond")
+                    bond_input = tree_input(
+                        "Choose company to issue bond", tree, game.state
+                    )
                     action = int(bond_input)
                 elif game.state.stage == InTurnStage.CHOOSE_BOND_CERT:
                     for i, j in enumerate(game.state.bonds_remaining):
                         print(f"{i}: {j}")
-                    bond_input = input("Choose bond to issue")
+                    bond_input = tree_input("Choose bond to issue", tree, game.state)
                     action = int(bond_input)
                 elif game.state.stage == InTurnStage.CHOOSE_TAKE_RESOURCE_CO:
                     companies_held = game.state.get_current_player_companies_held()
                     for i, j in enumerate(companies_held):
                         print(f"{i}: {j}")
-                    resource_input = input("Choose company to take resource from")
+                    resource_input = tree_input(
+                        "Choose company to take resource from", tree, game.state
+                    )
                     action = int(resource_input)
                 elif game.state.stage == InTurnStage.CHOOSE_TRACK_CO:
                     companies_held = game.state.get_current_player_companies_held()
                     for i, j in enumerate(companies_held):
                         print(f"{i}: {j}")
-                    track_input = input("Choose company to build track for")
+                    track_input = tree_input(
+                        "Choose company to build track for", tree, game.state
+                    )
                     action = int(track_input)
             if action not in game.state.permitted_actions:
                 print("Invalid action")
