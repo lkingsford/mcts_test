@@ -80,43 +80,49 @@ def train(
         speedo_thread.start()
     try:
         for episode_no in range(episodes):
-            game = game_class()
-            if tree.unload_after_play:
-                tree.new_root(game.state)
+            try:
+                game = game_class()
+                if tree.unload_after_play:
+                    tree.new_root(game.state)
 
-            LOGGER.info("Episode %d", episode_no)
-            action_log: list[ActionLog] = []
-            while game.state.winner == -1:
+                LOGGER.info("Episode %d", episode_no)
+                action_log: list[ActionLog] = []
+                while game.state.winner == -1:
 
-                LOGGER.debug("GC tracked objects: %d, %d, %d", *gc.get_count())
-                LOGGER.debug("Playing Non-Player Act")
-                action, state = game.non_player_act()
-                action_log.append(ActionLog(action, None, state.loggable(), None))
-                LOGGER.debug("Deciding/Playing Turn")
-                time_before = time.process_time()
-                action = tree.act(game.state)
-                LOGGER.info(
-                    "Player %d: %s (%fs)",
-                    game.state.next_player_id,
-                    str(action),
-                    time.process_time() - time_before,
-                )
-                game.act(action)
-                if game.state.memo is not None:
-                    LOGGER.info("Memo: %s", game.state.memo)
-                action_log.append(
-                    ActionLog(
-                        action,
-                        game.state.last_player_id,
-                        state.loggable(),
-                        game.state.memo,
+                    LOGGER.debug("GC tracked objects: %d, %d, %d", *gc.get_count())
+                    LOGGER.debug("Playing Non-Player Act")
+                    action, state = game.non_player_act()
+                    action_log.append(ActionLog(action, None, state.loggable(), None))
+                    LOGGER.debug("Deciding/Playing Turn")
+                    time_before = time.process_time()
+                    action = tree.act(game.state)
+                    LOGGER.info(
+                        "Player %d: %s (%fs)",
+                        game.state.next_player_id,
+                        str(action),
+                        time.process_time() - time_before,
                     )
-                )
+                    game.act(action)
+                    if game.state.memo is not None:
+                        LOGGER.info("Memo: %s", game.state.memo)
+                    action_log.append(
+                        ActionLog(
+                            action,
+                            game.state.last_player_id,
+                            state.loggable(),
+                            game.state.memo,
+                        )
+                    )
 
-            if report_folder:
-                save_report(report_folder, action_log)
+                if report_folder:
+                    save_report(report_folder, action_log)
 
-            LOGGER.info("Winner: %d", game.state.winner)
+                LOGGER.info("Winner: %d", game.state.winner)
+            except Exception as e:
+                # I don't like this, but I don't want to just stop making
+                # reports on an error, and they still happen far too commonly
+                LOGGER.error("Exception occurred during training", exc_info=e)
+
             if episode_no % 10 == 0 or episode_no == episodes - 1:
                 tree.to_disk()
     finally:
