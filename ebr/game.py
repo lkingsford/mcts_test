@@ -463,12 +463,13 @@ class EbrGameState(GameState):
         self._memo[key] = value
 
     def memo_end_game_state(self, reason):
-        self._memo["End Game Reason"] = reason
-        self._memo["End Game Player Treasury"] = self.player_cash
-        self._memo["End Game Last Dividend"] = self.last_dividend_was
-        self._memo["End Game Bonds Remaining"] = self.bonds_remaining
-        self._memo["End Game Track"] = self.track
-        self._memo["End Game Company State"] = {
+        self._memo["End Game"] = {}
+        self._memo["End Game"]["Reason"] = reason
+        self._memo["End Game"]["Player Treasury"] = self.player_cash
+        self._memo["End Game"]["Last Dividend"] = self.last_dividend_was
+        self._memo["End Game"]["Bonds Remaining"] = self.bonds_remaining
+        self._memo["End Game"]["Track"] = self.track
+        self._memo["End Game"]["Company State"] = {
             company.name: asdict(state) for company, state in self.company_state.items()
         }
 
@@ -861,17 +862,17 @@ class EbrGame(Game):
             self.state.company_state[co].shareholders.append(winner)
             self.state.company_state[co].treasury += self.state.phase_state.current_bid
             self.state.player_cash[winner] -= self.state.phase_state.current_bid
-            self.state.add_memo(
-                "Auction Started By",
-                (
+            auction_memo = {
+                "Started By": (
                     self.state.active_player
                     if self.state.phase == Phase.AUCTION
                     else "IPO"
                 ),
-            )
-            self.state.add_memo("Auction Winner", winner)
-            self.state.add_memo("Auction Company", co)
-            self.state.add_memo("Auction Price", self.state.phase_state.current_bid)
+                "Winner": winner,
+                "Company": co,
+                "Price": self.state.phase_state.current_bid,
+            }
+            self.state.add_memo("Auction", auction_memo)
             if COMPANIES[co].private:
                 self.expand_resources(co)
             if self.state.phase == Phase.AUCTION:
@@ -990,6 +991,8 @@ class EbrGame(Game):
             self.state.stage = InTurnStage.CHOOSE_TRACK_CO
 
     def pay_dividends(self):
+        dividend_by_co = {}
+        player_cash_before_payment = np.array([i for i in self.state.player_cash])
         for abbr, company in self.state.company_state.items():
             assert company
             if len(company.shareholders) == 0 or company.owned_by is not None:
@@ -1016,9 +1019,18 @@ class EbrGame(Game):
                 if payout > 0
                 else math.floor(payout / len(company.shareholders))
             )
+            dividend_by_co[str(abbr)] = payout_per_shareholder
             # TODO: Implement cascading bankruptcy
             for shareholder in company.shareholders:
                 self.state.player_cash[shareholder] += payout_per_shareholder
+        self.state.add_memo(
+            "Paid Dividends",
+            {
+                "Per share": dividend_by_co,
+                "Player cash change": np.array(self.state.player_cash)
+                - player_cash_before_payment,
+            },
+        )
 
         self.state.last_dividend_was += 1
 
@@ -1169,12 +1181,14 @@ class EbrGame(Game):
             operations=self.state.phase_state.operations + 1,
         )
 
-        self.state.add_memo("Build track company", asdict(company))
-        self.state.add_memo("Build track location", coord)
-        self.state.add_memo("Build track cost", track_cost)
-
-        if self.state.phase_state.operations >= BUILD_ACTIONS:
-            self.end_turn()
+        self.state.add_memo(
+            "Build track",
+            {
+                "company": asdict(company),
+                "location": coord,
+                "cost": track_cost,
+            },
+        )
 
     def start_auction(self, action):
         company = COMPANY(action)
