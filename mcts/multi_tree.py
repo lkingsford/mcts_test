@@ -38,16 +38,13 @@ def process_worker(
 
     while True:
         state = q.get(block=True)
-        try:
-            node = tree.get_node(state)
-            tree._process_turn(node, state)
-            ucbs = node.child_ucb(act_const)
-            keys = list(node.children.keys())
-            new_iterations = tree.total_iterations
-            result_q.put((keys, ucbs, new_iterations - last_iterations))
-            last_iterations = new_iterations
-        except Exception as e:
-            LOGGER.exception(e)
+        node = tree.get_node(state)
+        tree._process_turn(node, state)
+        ucbs = node.child_ucb(act_const)
+        keys = list(node.children.keys())
+        new_iterations = tree.total_iterations
+        result_q.put((keys, ucbs, new_iterations - last_iterations))
+        last_iterations = new_iterations
 
 
 class MultiTree:
@@ -120,15 +117,7 @@ class MultiTree:
             self.q.put(state)
 
         # Result is keys, ucbs, total_iterations
-        keys_ucbs = []
-        for _ in range(self.jobs):
-            try:
-                while not self.result_q.empty():
-                    keys_ucbs.append(self.result_q.get())
-            except Exception as e:
-                LOGGER.exception(e)
-                break
-
+        keys_ucbs = [self.result_q.get() for _ in range(self.jobs)]
         self.total_iterations += sum([k[2] for k in keys_ucbs])
         return MultiTree.best_action(state.permitted_actions, keys_ucbs)
 
