@@ -1,5 +1,6 @@
 import numpy as np
 from mon2y import Node, Child
+from mon2y.node import ActResponse
 
 
 def test_back_propogate_one_player():
@@ -39,3 +40,15 @@ def test_back_propogate_multiple_player():
     assert child_1_node.value_estimate == 1
     assert child_2_node.value_estimate == 0
     assert child_3_node.value_estimate == 1
+
+
+def test_play_out():
+    """Test that play out keeps running the action -> result function until there's a reward"""
+
+    def sample_act(action, state):
+        return ActResponse(
+            [1, 2, 3], state + action, 0, np.array([1]) if state + action > 10 else None
+        )
+
+    root = Node(0, -1, None, 1)
+    assert root.play_out(sample_act) == np.array([1])
