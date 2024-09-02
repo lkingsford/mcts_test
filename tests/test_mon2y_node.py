@@ -1,5 +1,6 @@
 import numpy as np
 from mon2y import Node
+
 from mon2y.node import ActResponse
 
 
@@ -9,7 +10,7 @@ def sample_act(action, state):
         [1, 2, 3],
         state + action,
         (state + action) % 2,
-        np.array([1]) if state + action > 10 else None,
+        np.array([1, 0]) if state + action > 10 else None,
     )
 
 
@@ -51,14 +52,16 @@ def test_play_out():
     """Test that play out keeps running the action -> result function until there's a reward"""
 
     root = Node(0, -1, None, 1)
-    assert root.play_out(sample_act) == np.array([1])
+    result = root.play_out(sample_act)
+    assert len(result) == 2
+    assert result[0] == 1
+    assert result[1] == 0
 
 
 def test_expansion_fully_explored():
     """Test that if all children fully explored, the node is fully explored"""
 
-    initial_state = 10
-    root = Node(initial_state, -1, None, 8)
+    root = Node(0, -1, None, 8)
     root.expansion([1, 2, 3], 1, sample_act)
     root.get_child(1).expansion([4], 1, sample_act)
     root.get_child(1).get_child(4).play_out(sample_act)
@@ -71,10 +74,29 @@ def test_expansion_fully_explored():
 def test_expansion_not_fully_explored():
     """Test that if not all children fully explored, the node is not fully explored"""
 
-    initial_state = 10
-    root = Node(initial_state, -1, None, 8)
+    root = Node(0, -1, None, 8)
     root.expansion([1, 2, 3], 1, sample_act)
     root.get_child(1).expansion([4], 1, sample_act)
     root.get_child(1).get_child(4).play_out(sample_act)
     root.get_child(3).play_out(sample_act)
     assert not root.fully_explored
+
+
+def test_selection_unvisited():
+    """Test that where a node is unvisited, it's selected"""
+    #
+    #          Root
+    #          /  \
+    #          A   B
+    #              |
+    #              C
+    # A has been visited. B has not been visited. C is a leaf and should be selected.
+
+    root = Node(0, -1, None, 0)
+    root.expansion([1, 2], 1, sample_act)
+    result = root.get_child(1).play_out(sample_act)
+    root.get_child(1).back_propogate(result)
+    root.get_child(2).expansion([1], 1, sample_act)
+    expected = root.get_child(2).get_child(1)
+    selected = root.selection()
+    assert selected == expected

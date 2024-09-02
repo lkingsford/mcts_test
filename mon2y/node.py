@@ -1,20 +1,25 @@
-from collections import NamedTuple
-from typing import Callable, Hashable, Optional
+import math
+import random
+from typing import Callable, Hashable, NamedTuple, Optional
 
 import numpy as np
 
 Action = Hashable
 PlayerId = int
 State = Hashable
-ActCallable = Callable[[State, Action], tuple[State, tuple[Action]]]
+Reward = np.ndarray
 
 NON_PLAYER_ACTION = -1
 
 
-class Child(NamedTuple):
-    action: Action
-    player_id: PlayerId
-    state_hash: State
+class ActResponse(NamedTuple):
+    permitted_actions: tuple[Action]
+    state: State
+    next_player: PlayerId
+    reward: Optional[np.ndarray]
+
+
+ActCallable = Callable[[State, Action], ActResponse]
 
 
 class Node:
@@ -23,14 +28,15 @@ class Node:
         action: Action = None,
         player_id: int = -1,
         parent: Optional["Node"] = None,
-        state_hash: Hashable = None,
+        state: State = None,
     ):
         self.parent = parent
         self.action = action
-        self.state_hash = state_hash
+        self.state = state
         self.player_id = player_id
-        self.leaf = True
-        self.fully_explored = False
+        self._fully_explored_branch = False
+        # Fully explored could be a property, but this stops it turning into a
+
         # Spending memory to decrease CPU usage
         # These map actions to the index of children, child visits and child values
         self._child_idx_action_map: dict[int, Action] = {}
@@ -40,53 +46,99 @@ class Node:
         self._child_value: Optional[np.array] = None
         pass
 
-    def selection(self, constant) -> Optional["Node"]:
+    @property
+    def value_estimate(self):
+        return (
+            self.parent._child_value[self.parent._child_action_idx_map[self.action]]
+            if self.parent
+            else np.sum(self._child_value)
+        )
+
+    @property
+    def visit_count(self):
+        return (
+            self.parent._child_visit_count[
+                self.parent._child_action_idx_map[self.action]
+            ]
+            if self.parent
+            else np.sum(self._child_visit_count)
+        )
+
+    @property
+    def fully_explored(self):
+        return self._fully_explored_branch or (
+            len(self._children) > 0
+            and all(child.fully_explored for child in self._children)
+        )
+
+    @property
+    def leaf(self):
+        return len(self._children) == 0
+
+    def selection(self, constant=math.sqrt(2)) -> Optional["Node"]:
         if self.fully_explored:
             return None
 
         if self.leaf:
             return self
 
-        selection_found = None
-        while not selection_found and not self.fully_explored:
-            best_picks = self.best_pick(constant)
-            best_pick = next(
-                pick for pick in best_picks if not self.get_child(pick).fully_explored
-            )
-            return self.get_child(best_pick)
+        current_selection: Optional["Node"] = self
 
-    def expansion(self, children: list[Child]):
+        while not current_selection.leaf:
+            best_picks = current_selection.best_pick(constant)
+            best_pick = next(
+                pick
+                for pick in best_picks
+                if not current_selection.get_child(pick).fully_explored
+            )
+            current_selection = current_selection.get_child(best_pick)
+
+        return current_selection
+
+    def expansion(
+        self, actions: list[Action], player_id: PlayerId, act_fn: ActCallable
+    ):
         """Create a new child node for an action"""
         if not self._child_visit_count:
-            self._child_visit_count = np.zeros(len(children))
+            self._child_visit_count = np.zeros(len(actions))
         else:
-            new_visit_counts = np.zeros(len(children))
+            new_visit_counts = np.zeros(len(actions))
             self._child_visit_count = np.append(
                 self._child_visit_count, new_visit_counts
             )
 
         if not self._child_value:
-            self._child_value = np.zeros(len(children))
+            self._child_value = np.zeros(len(actions))
         else:
-            new_values = np.zeros(len(children))
+            new_values = np.zeros(len(actions))
             self._child_value = np.append(self._child_value, new_values)
 
-        for child in children:
-            self._child_action_idx_map[child.action] = len(self._children)
-            self._child_idx_action_map[len(self._children)] = child.action
+        for action in actions:
+            self._child_action_idx_map[action] = len(self._children)
+            self._child_idx_action_map[len(self._children)] = action
+            result = act_fn(self.state, action)
             self._children.append(
                 Node(
-                    action=child.action,
-                    player_id=child.player_id,
+                    action=action,
+                    player_id=player_id,
                     parent=self,
-                    state_hash=child.state_hash,
+                    state=result.state,
                 )
             )
 
-        self.leaf = False
+    def play_out(self, act_fn: ActCallable) -> Reward:
+        # We run once to start
+        result = act_fn(self.state, self.action)
 
-    def play_out(self, state: State, act_fn: ActCallable):
-        self.fully_explored = all(child.fully_explored for child in self._children)
+        if result.reward is not None:
+            # I don't know if this should be here or in back_propogate
+            self._fully_explored_branch = True
+
+        while result.reward is None:
+            action = random.choice(result.permitted_actions)
+            result = act_fn(result.state, action)
+
+        return result.reward
 
     def get_child(self, action: Action) -> "Node":
         return self._children[self._child_action_idx_map[action]]
@@ -104,18 +156,18 @@ class Node:
         node = self
         while node.parent:
             if node.player_id >= 0:
-                assert node.parent._child_visit_count
+                assert node.parent._child_visit_count is not None
                 node.parent._child_visit_count[
-                    node._child_action_idx_map[node.action]
+                    node.parent._child_action_idx_map[node.action]
                 ] += 1
                 node.parent._child_value[
-                    node._child_action_idx_map[node.action]
+                    node.parent._child_action_idx_map[node.action]
                 ] += value_d[node.player_id]
             node = node.parent
 
     def child_ucb(self, constant):
         q = (self._child_value) / (1 + self._child_visit_count)
-        u = np.sqrt(np.log(self.parent.visit_count) / (1 + self._child_visit_count))
+        u = np.sqrt(np.log(np.divide(self.visit_count, self._child_visit_count)))
         # Small amount of randomness to prevent bias when there's multiple of the same value
         # (especially in the beginning)
         r = np.random.rand(len(q)) * 1e-6
