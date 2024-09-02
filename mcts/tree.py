@@ -102,9 +102,6 @@ class Tree:
         self, current_action_node: Node, state: game.game_state.GameState
     ):
         if self.unload_after_play:
-            # Another crappy hack
-            # TODO: make this not a hack
-            # Sometimes - root doesn't reflect the actual state
             if current_action_node.state.previous_actions != state.previous_actions:
                 self.new_root(state)
             else:
@@ -171,11 +168,14 @@ class Tree:
         # Create nodes for all legal actions
         LOGGER.debug("## Expansion")
         LOGGER.debug("Expanding node %s", str(node.action))
+        LOGGER.debug("Permitted actions: %s", str(node.state.permitted_actions))
         state = node.state
         if node.child_visit_count is None:
             node.child_visit_count = np.zeros(len(state.permitted_actions))
         if node.child_value is None:
             node.child_value = np.zeros(len(state.permitted_actions))
+        LOGGER.debug("Childs: %s", str(node.children))
+        LOGGER.debug("Child visits: %s", str(node.child_visit_count))
         for action in state.permitted_actions:
             if action in node.children:
                 continue
@@ -191,7 +191,8 @@ class Tree:
         while state.winner == -1:
             # TODO: Generalize Action Selection so can make not just random
             action = random.choice(state.permitted_actions)
-            LOGGER.debug("Action: %s", str(action))
+            LOGGER.debug("Play out permitted action: %s", str(action))
+            LOGGER.debug("Play Out Action: %s", str(action))
             if state.next_automated:
                 state = game.apply_non_player_acts(action)
             else:
