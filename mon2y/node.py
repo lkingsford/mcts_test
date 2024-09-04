@@ -1,4 +1,3 @@
-import math
 import random
 from typing import Callable, Hashable, NamedTuple, Optional
 
@@ -13,7 +12,7 @@ NON_PLAYER_ACTION = -1
 
 
 class ActResponse(NamedTuple):
-    permitted_actions: tuple[Action]
+    permitted_actions: tuple[Action, ...]
     state: State
     next_player: PlayerId
     reward: Optional[np.ndarray]
@@ -37,6 +36,9 @@ class Node:
         self._fully_explored_branch = False
         # Fully explored could be a property, but this stops it turning into a
 
+        # These are used when parent is None
+        self._override_parent_state: Optional[State] = None
+
         # Spending memory to decrease CPU usage
         # These map actions to the index of children, child visits and child values
         self._child_idx_action_map: dict[int, Action] = {}
@@ -44,7 +46,6 @@ class Node:
         self._children: list["Node"] = []
         self._child_visit_count: Optional[np.array] = None
         self._child_value: Optional[np.array] = None
-        pass
 
     @property
     def value_estimate(self):
@@ -75,14 +76,14 @@ class Node:
     def leaf(self):
         return len(self._children) == 0
 
-    def selection(self, constant=math.sqrt(2)) -> Optional["Node"]:
+    def selection(self, constant=np.sqrt(2)) -> Optional["Node"]:
         if self.fully_explored:
             return None
 
         if self.leaf:
             return self
 
-        current_selection: Optional["Node"] = self
+        current_selection: "Node" = self
 
         while not current_selection.leaf:
             best_picks = current_selection.best_pick(constant)
@@ -96,8 +97,20 @@ class Node:
         return current_selection
 
     def expansion(
-        self, actions: list[Action], player_id: PlayerId, act_fn: ActCallable
+        self,
+        act_fn: ActCallable,
+        parent_state: Optional[State] = None,
     ):
+        if parent_state is None:
+            assert self.parent
+            assert self.parent.state is not None
+            parent_state = self.parent.state
+
+        actions, self.state, player_id, self.reward = act_fn(self.action, parent_state)
+        if self.reward is not None:
+            self._fully_explored_branch = True
+            return
+
         """Create a new child node for an action"""
         if not self._child_visit_count:
             self._child_visit_count = np.zeros(len(actions))
@@ -116,24 +129,19 @@ class Node:
         for action in actions:
             self._child_action_idx_map[action] = len(self._children)
             self._child_idx_action_map[len(self._children)] = action
-            result = act_fn(self.state, action)
             self._children.append(
-                Node(
-                    action=action,
-                    player_id=player_id,
-                    parent=self,
-                    state=result.state,
-                )
+                Node(action=action, player_id=player_id, parent=self, state=None)
             )
 
     def play_out(self, act_fn: ActCallable) -> Reward:
-        # We run once to start
-        result = act_fn(self.state, self.action)
+        if self._override_parent_state is not None:
+            parent_state = self._override_parent_state
+        else:
+            assert self.parent
+            assert self.parent.state is not None
+            parent_state = self.parent.state
 
-        if result.reward is not None:
-            # I don't know if this should be here or in back_propogate
-            self._fully_explored_branch = True
-
+        result = act_fn(parent_state, self.action)
         while result.reward is None:
             action = random.choice(result.permitted_actions)
             result = act_fn(result.state, action)
@@ -144,8 +152,12 @@ class Node:
         return self._children[self._child_action_idx_map[action]]
 
     def detach_from_parent(self):
+        self._override_parent_state = self.parent.state
         self.parent = None
         pass
+
+    def override_parent_state(self, state: State):
+        self._override_parent_state = state
 
     def back_propogate(self, value_d: np.array):
         """Propogate the value back to the root of the tree
