@@ -1,7 +1,10 @@
 import random
 from typing import Callable, Hashable, NamedTuple, Optional
+import logging
 
 import numpy as np
+
+LOGGER = logging.getLogger(__name__)
 
 Action = Hashable
 PlayerId = int
@@ -15,7 +18,7 @@ class ActResponse(NamedTuple):
     permitted_actions: tuple[Action, ...]
     state: State
     next_player: PlayerId
-    reward: Optional[np.ndarray]
+    reward: Optional[Reward]
 
 
 ActCallable = Callable[[State, Action], ActResponse]
@@ -28,16 +31,22 @@ class Node:
         player_id: int = -1,
         parent: Optional["Node"] = None,
         state: State = None,
+        reward: Optional[Reward] = None,
+        permitted_actions: Optional[tuple[Action, ...]] = None,
+        next_player: Optional[int] = None,
     ):
         self.parent = parent
         self.action = action
         self.state = state
         self.player_id = player_id
+        self.reward = None
         self._fully_explored_branch = False
         # Fully explored could be a property, but this stops it turning into a
 
-        # These are used when parent is None
-        self._override_parent_state: Optional[State] = None
+        # These are used when this is the root
+        self.permitted_actions = permitted_actions
+        self.reward = reward
+        self.next_player = next_player
 
         # Spending memory to decrease CPU usage
         # These map actions to the index of children, child visits and child values
@@ -99,14 +108,28 @@ class Node:
     def expansion(
         self,
         act_fn: ActCallable,
-        parent_state: Optional[State] = None,
     ):
-        if parent_state is None:
+        if (
+            self.permitted_actions is not None
+            and self.state is not None
+            and self.next_player is not None
+        ):
+            actions = self.permitted_actions
+            player_id = self.next_player
+        else:
+            if any([self.permitted_actions is not None, self.next_player is not None]):
+                LOGGER.warning(
+                    "Not state provided, but permitted actions and/or next player are set"
+                )
+            # This is the expected state, except in root
             assert self.parent
             assert self.parent.state is not None
-            parent_state = self.parent.state
+            actions, self.state, player_id, self.reward = act_fn(
+                self.action, self.parent.state
+            )
 
-        actions, self.state, player_id, self.reward = act_fn(self.action, parent_state)
+        assert actions
+
         if self.reward is not None:
             self._fully_explored_branch = True
             return
@@ -134,14 +157,23 @@ class Node:
             )
 
     def play_out(self, act_fn: ActCallable) -> Reward:
-        if self._override_parent_state is not None:
-            parent_state = self._override_parent_state
+        if (
+            self.permitted_actions is not None
+            and self.state is not None
+            and self.next_player is not None
+        ):
+            result = ActResponse(
+                self.permitted_actions, self.state, self.next_player, self.reward
+            )
         else:
+            if any([self.permitted_actions is not None, self.next_player is not None]):
+                LOGGER.warning(
+                    "No state provided, but permitted action and/or next_player are set."
+                )
             assert self.parent
             assert self.parent.state is not None
-            parent_state = self.parent.state
+            result = act_fn(self.parent.state, self.action)
 
-        result = act_fn(parent_state, self.action)
         while result.reward is None:
             action = random.choice(result.permitted_actions)
             result = act_fn(result.state, action)
@@ -150,14 +182,6 @@ class Node:
 
     def get_child(self, action: Action) -> "Node":
         return self._children[self._child_action_idx_map[action]]
-
-    def detach_from_parent(self):
-        self._override_parent_state = self.parent.state
-        self.parent = None
-        pass
-
-    def override_parent_state(self, state: State):
-        self._override_parent_state = state
 
     def back_propogate(self, value_d: np.array):
         """Propogate the value back to the root of the tree
@@ -192,3 +216,23 @@ class Node:
             self._child_idx_action_map[child_action_idx]
             for child_action_idx in best_picks
         ]
+
+    def best_pick_with_values(self, constant) -> list[tuple[Action, float]]:
+        # I ack there's dupe code here, but I don't want to slow down best_pick
+        # when we don't need the values - even if it's not big
+        # (unmeasured, as of writing)
+        ucbs = self.child_ucb(constant)
+        best_picks = [child_action_idx for child_action_idx in np.argsort(ucbs)[::-1]]
+        best_pick_ucbs = ucbs[best_picks]
+        return [
+            (
+                self._child_idx_action_map[child_action_idx],
+                best_pick_ucbs[child_action_idx],
+            )
+            for child_action_idx in best_picks
+        ]
+
+    def make_root(self, act_fn: ActCallable):
+        if not self.state:
+            raise ValueError("Cannot root an unexpanded node")
+        self.parent = None
