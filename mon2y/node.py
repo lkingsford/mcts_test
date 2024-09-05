@@ -125,7 +125,7 @@ class Node:
             assert self.parent
             assert self.parent.state is not None
             actions, self.state, player_id, self.reward = act_fn(
-                self.action, self.parent.state
+                self.parent.state, self.action
             )
 
         assert actions
