@@ -4,6 +4,7 @@ import pytest
 import numpy as np
 import mon2y.node
 import c4.m2game
+import mon2y.train
 
 
 def c4_about_to_win_state():
@@ -96,3 +97,8 @@ def test_calculate_next_action(state, correct_action, permitted_actions):
     node = mon2y.Node(state=state, permitted_actions=permitted_actions, next_player=0)
     action = mon2y.calculate_next_action(node, c4.m2game.act, 100)
     assert action == correct_action
+
+
+def test_play_c4_episode():
+    """Just play through an episode of connect 4"""
+    mon2y.episode(c4.m2game.initialize_game, c4.m2game.act, 25)

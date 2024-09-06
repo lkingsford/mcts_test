@@ -48,3 +48,15 @@ def episode(
         node = node.get_child(action)
         LOGGER.info(node.reward)
         node.make_root()
+
+
+def train(
+    initializer: Callable[[], ActResponse],
+    act_fn: ActCallable,
+    iterations: int,
+    episodes: int,
+    constant: np.float32 = np.sqrt(2),
+):
+    for episode_no in range(episodes):
+        LOGGER.info("Episode %d", episode_no)
+        episode(initializer, act_fn, iterations, constant)
