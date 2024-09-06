@@ -1,6 +1,7 @@
 import logging
+from typing import Callable
 import numpy as np
-from mon2y import Node, ActCallable, Action, State
+from mon2y import Node, ActCallable, Action, ActResponse
 
 
 LOGGER = logging.getLogger(__name__)
@@ -28,14 +29,22 @@ def calculate_next_action(
 
 
 def episode(
-    initial_state: State,
+    initializer: Callable[[], ActResponse],
     act_fn: ActCallable,
     iterations: int,
     constant: np.float32 = np.sqrt(2),
 ):
     """Execute whole episode"""
-    node = Node(state=initial_state)
+    initial_state = initializer()
+    node = Node(
+        state=initial_state.state,
+        permitted_actions=initial_state.permitted_actions,
+        next_player=initial_state.next_player,
+        reward=initial_state.reward,
+    )
     while node.reward is None:
-        for _ in range(iterations):
-            action = calculate_next_action(node, act_fn, iterations, constant)
-            node = node.get_child(action)
+        LOGGER.info("Action %s", node.action)
+        action = calculate_next_action(node, act_fn, iterations, constant)
+        node = node.get_child(action)
+        LOGGER.info(node.reward)
+        node.make_root()

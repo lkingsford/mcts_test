@@ -128,6 +128,10 @@ class Node:
                 self.parent.state, self.action
             )
 
+        # These allow us to reroot later without rerunning
+        self.permitted_actions = actions
+        self.next_player = player_id
+
         assert actions
 
         if self.reward is not None:
@@ -232,7 +236,7 @@ class Node:
             for child_action_idx in best_picks
         ]
 
-    def make_root(self, act_fn: ActCallable):
+    def make_root(self):
         if not self.state:
             raise ValueError("Cannot root an unexpanded node")
         self.parent = None
