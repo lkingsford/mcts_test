@@ -20,9 +20,7 @@ class c4State:
     def copy(self) -> "c4State":
         return c4State(
             self.next_player,
-            np.array(
-                [[column for column in row] for row in self.board], dtype=np.uint8
-            ),
+            self.board.copy(),
         )
 
     def loggable(self) -> dict:

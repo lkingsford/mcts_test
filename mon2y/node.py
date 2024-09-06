@@ -1,5 +1,5 @@
 import random
-from typing import Callable, Hashable, NamedTuple, Optional
+from typing import Callable, Hashable, NamedTuple, Optional, Protocol
 import logging
 
 import numpy as np
@@ -7,9 +7,13 @@ import numpy as np
 
 LOGGER = logging.getLogger(__name__)
 
+
+class State(Protocol, Hashable):
+    def copy(self): ...
+
+
 Action = Hashable
 PlayerId = int
-State = Hashable
 Reward = np.ndarray
 
 NON_PLAYER_ACTION = -1
@@ -126,7 +130,7 @@ class Node:
             assert self.parent
             assert self.parent.state is not None
             actions, self.state, player_id, self.reward = act_fn(
-                self.parent.state, self.action
+                self.parent.state.copy(), self.action
             )
 
         # These allow us to reroot later without rerunning
@@ -184,7 +188,7 @@ class Node:
 
         while result.reward is None:
             action = random.choice(result.permitted_actions)
-            result = act_fn(result.state, action)
+            result = act_fn(result.state.copy(), action)
 
         return result.reward
 
