@@ -25,7 +25,9 @@ def calculate_next_action(
 ) -> Action:
     for _ in range(iterations):
         iterate(node, act_fn)
-    return node.best_pick(constant)[0]
+    picks = node.best_pick_with_values(0)
+    LOGGER.info("Picks: %s", picks)
+    return picks[0][0]
 
 
 def episode(

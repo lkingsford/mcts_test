@@ -162,6 +162,9 @@ class Node:
             )
 
     def play_out(self, act_fn: ActCallable) -> Reward:
+        if self.reward is not None:
+            return self.reward
+
         if (
             self.permitted_actions is not None
             and self.state is not None

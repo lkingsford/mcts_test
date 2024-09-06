@@ -73,15 +73,15 @@ def c4_some_actions_not_available_state():
                 [2, 1, 2, 0, 0, 2, 0, 0],
                 [2, 1, 2, 0, 0, 1, 2, 0],
                 [1, 1, 2, 0, 1, 2, 2, 0],
-                [1, 2, 1, 0, 1, 2, 2, 0],
+                [1, 2, 1, 1, 1, 2, 2, 0],
                 [1, 1, 2, 2, 2, 1, 1, 0],
                 [2, 2, 2, 1, 1, 2, 1, 0],
                 [2, 1, 2, 1, 1, 2, 1, 0],
             ]
         ),
-        next_player=0,
+        next_player=1,
     )
-    return state, 7, [3, 4, 6, 7]
+    return state, 6, [3, 4, 6, 7]
 
 
 @pytest.mark.parametrize(
@@ -94,8 +94,10 @@ def c4_some_actions_not_available_state():
     ids=["C4: About to win", "C4: Lose unless", "C4: Some actions not available"],
 )
 def test_calculate_next_action(state, correct_action, permitted_actions):
-    node = mon2y.Node(state=state, permitted_actions=permitted_actions, next_player=0)
-    action = mon2y.calculate_next_action(node, c4.m2game.act, 100)
+    node = mon2y.Node(
+        state=state, permitted_actions=permitted_actions, next_player=state.next_player
+    )
+    action = mon2y.calculate_next_action(node, c4.m2game.act, 1000)
     assert action == correct_action
 
 
