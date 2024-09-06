@@ -61,7 +61,7 @@ def check_for_win(board) -> Optional[int]:
             if winner:
                 return board[iy][ix] - 1
 
-    stalemate: bool = not np.any(np.equal(board, 0))
+    stalemate: bool = not np.any(board == 0)
     if stalemate:
         return -2
 

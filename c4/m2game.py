@@ -55,6 +55,9 @@ def act(old_state: c4State, action) -> ActResponse:
         reward = np.array([1, 0])
     elif winner == 1:
         reward = np.array([0, 1])
+    elif winner == -2:
+        # Stalemate - discourage with some negative reward
+        reward = np.array([-0.5, -0.5])
     else:
         reward = None
 
