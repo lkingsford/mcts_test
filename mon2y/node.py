@@ -234,11 +234,10 @@ class Node:
         # (unmeasured, as of writing)
         ucbs = self.child_ucb(constant)
         best_picks = [child_action_idx for child_action_idx in np.argsort(ucbs)[::-1]]
-        best_pick_ucbs = ucbs[best_picks]
         return [
             (
                 self._child_idx_action_map[child_action_idx],
-                best_pick_ucbs[child_action_idx],
+                ucbs[child_action_idx],
             )
             for child_action_idx in best_picks
         ]
