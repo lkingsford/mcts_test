@@ -213,10 +213,10 @@ class Node:
                 ] += value_d[node.player_id]
             node = node.parent
 
+    @np.errstate(all="ignore")
     def child_ucb(self, constant):
         # We rely on div/0 on when calculating UCB - it's not helpful to have them as
         # warnings
-        np.seterr(divide="ignore")
         q = (self._child_value) / (1 + self._child_visit_count)
         u = np.sqrt(np.log(np.divide(self.visit_count, self._child_visit_count)))
         # Small amount of randomness to prevent bias when there's multiple of the same value

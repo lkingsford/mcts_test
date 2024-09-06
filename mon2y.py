@@ -125,6 +125,7 @@ def main():
         args.iterations,
         args.episodes,
         args.constant,
+        args.jobs,
     )
 
 

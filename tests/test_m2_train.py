@@ -101,6 +101,15 @@ def test_calculate_next_action(state, correct_action, permitted_actions):
     assert action == correct_action
 
 
+def test_calculate_next_action_multiple_processes():
+    state, correct_action, permitted_actions = c4_about_to_win_state()
+    node = mon2y.Node(
+        state=state, permitted_actions=permitted_actions, next_player=state.next_player
+    )
+    action = mon2y.calculate_next_action(node, c4.m2game.act, 1000, processes=2)
+    assert action == correct_action
+
+
 def test_play_c4_episode():
     """Just play through an episode of connect 4"""
     mon2y.episode(c4.m2game.initialize_game, c4.m2game.act, 25)
