@@ -22,10 +22,10 @@ def iterate(node: Node, act_fn: ActCallable, constant: np.float32 = np.sqrt(2)):
 
     if selection.reward is None:
         reward = selection.play_out(act_fn)
-        LOGGER.info("Playout reward is %s", selection.reward)
+        LOGGER.debug("Playout reward is %s", selection.reward)
         selection.back_propogate(reward)
     else:
-        LOGGER.info("Reward without playout is %s", selection.reward)
+        LOGGER.debug("Reward without playout is %s", selection.reward)
         selection.back_propogate(selection.reward)
 
     global total_iterations
