@@ -9,13 +9,25 @@ LOGGER = logging.getLogger(__name__)
 total_iterations = 0
 
 
+def get_total_iterations():
+    global total_iterations
+    return total_iterations
+
+
 def iterate(node: Node, act_fn: ActCallable, constant: np.float32 = np.sqrt(2)):
     selection = node.selection(constant)
     if not selection:
         return
     selection.expansion(act_fn)
-    reward = selection.play_out(act_fn)
-    selection.back_propogate(reward)
+
+    if selection.reward is None:
+        reward = selection.play_out(act_fn)
+        LOGGER.info("Playout reward is %s", selection.reward)
+        selection.back_propogate(reward)
+    else:
+        LOGGER.info("Reward without playout is %s", selection.reward)
+        selection.back_propogate(selection.reward)
+
     global total_iterations
     total_iterations += 1
 
@@ -48,8 +60,9 @@ def episode(
         LOGGER.info("Action %s", node.action)
         action = calculate_next_action(node, act_fn, iterations, constant)
         node = node.get_child(action)
-        LOGGER.info(node.reward)
         node.make_root()
+
+    LOGGER.info("Episode done - reward: %s", node.reward)
 
 
 def train(

@@ -1,11 +1,14 @@
 import argparse
 import math
 import logging
+import threading
+import time
 from typing import Callable, NamedTuple
-import c4.m2game
 
-from mon2y import train
-from mon2y.node import ActCallable, ActResponse
+import c4.m2game
+from mon2y import train, ActCallable, ActResponse, get_total_iterations
+
+LOGGER = logging.getLogger(__name__)
 
 
 class GameDetails(NamedTuple):
@@ -14,6 +17,29 @@ class GameDetails(NamedTuple):
 
 
 GAMES = {"c4": GameDetails(c4.m2game.initialize_game, c4.m2game.act)}
+
+
+def speedo(stop_event: threading.Event):
+    logger = logging.getLogger("speedo")
+    logger.setLevel(logging.INFO)
+    start_time = time.perf_counter()
+    iterations_count = get_total_iterations()
+    t_old = start_time
+    speeds = []
+    while not stop_event.is_set():
+        t = time.perf_counter() - start_time
+        new_iterations_count = get_total_iterations()
+        iterations_per_second = (
+            float(new_iterations_count) - float(iterations_count)
+        ) / (t - t_old)
+        speeds.append(iterations_per_second)
+        if len(speeds) > 20:
+            del speeds[0]
+        logger.info("Iterations/second: %f", sum(speeds) / len(speeds))
+        iterations_count = new_iterations_count
+
+        stop_event.wait(2)
+        t_old = t
 
 
 def positive_int(value):
@@ -87,6 +113,11 @@ def main():
     handler = logging.StreamHandler()
     handler.setFormatter(formatter)
     logger.addHandler(handler)
+
+    if args.speedo:
+        stop_event = threading.Event()
+        speedo_thread = threading.Thread(target=speedo, args=(stop_event,))
+        speedo_thread.start()
 
     train(
         GAMES[args.game].initilizer,
