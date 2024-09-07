@@ -6,7 +6,8 @@ from typing import Optional, NamedTuple
 
 import numpy as np
 
-from mon2y.node import State, Action
+from .state import State
+from .node import Action
 
 
 class ActionLog(NamedTuple):

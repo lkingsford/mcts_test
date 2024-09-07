@@ -1,7 +1,5 @@
 """Collate reports for a game into maybe useful data"""
 
-"""Collate reports for a game into maybe useful data"""
-
 import argparse
 import fnmatch
 import importlib.util
@@ -9,6 +7,7 @@ import inspect
 import json
 import logging
 import os
+import mon2y.action_log
 import reporter.report
 
 
@@ -76,10 +75,11 @@ def main():
                     raw_play_report = json.load(f)
                     for report in reports_to_run:
                         play_report = [
-                            reporter.report.ActionEntry(*entry)
-                            for entry in raw_play_report
+                            mon2y.action_log.ActionLog(*entry)
+                            for entry in raw_play_report["log"]
                         ]
-                        report[1].ingest(play_report)
+                        reward = raw_play_report["reward"]
+                        report[1].ingest(reward, play_report)
                 except json.decoder.JSONDecodeError:
                     LOGGER.warning(f"Failed to parse {file}")
 

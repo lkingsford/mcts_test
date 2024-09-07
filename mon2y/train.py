@@ -5,8 +5,8 @@ import os
 from typing import Callable, NamedTuple, Optional
 import multiprocessing
 import numpy as np
-from reporter.action_log import ActionLog, ActionLogEncoder, save_report
-from mon2y import Node, ActCallable, Action, ActResponse
+from .action_log import ActionLog, ActionLogEncoder, save_report
+from .node import Node, ActCallable, Action, ActResponse
 
 
 LOGGER = logging.getLogger(__name__)

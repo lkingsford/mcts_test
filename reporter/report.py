@@ -1,18 +1,16 @@
 from abc import ABC, abstractmethod
 from typing import NamedTuple, Optional
-
-
-class ActionEntry(NamedTuple):
-    action: str
-    player_id: Optional[int]
-    state: dict
-    memo: Optional[str]
+import numpy as np
+from mon2y.action_log import ActionLog
 
 
 class Report(ABC):
-    @abstractmethod
-    def ingest(self, play_report: list[ActionEntry]):
-        pass
+    def ingest(
+        self,
+        reward: list[float],
+        play_report: list[ActionLog],
+    ):
+        self.winner = np.argmax(reward)
 
     @abstractmethod
     def report(self) -> str:

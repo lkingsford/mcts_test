@@ -1,18 +1,13 @@
 import random
-from typing import Callable, Hashable, NamedTuple, Optional, Protocol
+from typing import Callable, Hashable, NamedTuple, Optional
 import logging
 
 import numpy as np
 
+from .state import State
+
 
 LOGGER = logging.getLogger(__name__)
-
-
-class State(Protocol, Hashable):
-    def copy(self): ...
-    def loggable(self) -> dict:
-        # Naive implementation, but something
-        return {k: v for k, v in self.__dict__.items()}
 
 
 Action = Hashable
