@@ -1,13 +1,22 @@
+from datetime import datetime
+import json
 import logging
-from typing import Callable
+import os
+from typing import Callable, NamedTuple, Optional
 import multiprocessing
 import numpy as np
+from reporter.action_log import ActionLog, ActionLogEncoder, save_report
 from mon2y import Node, ActCallable, Action, ActResponse
 
 
 LOGGER = logging.getLogger(__name__)
 
 total_iterations = 0
+
+
+class EpisodeReport(NamedTuple):
+    final_reward: np.array
+    log: list[ActionLog]
 
 
 def get_total_iterations():
@@ -71,8 +80,9 @@ def episode(
     iterations: int,
     constant: np.float32 = np.sqrt(2),
     processes: int = 1,
-):
+) -> EpisodeReport:
     """Execute whole episode"""
+    action_log = []
     initial_state = initializer()
     node = Node(
         state=initial_state.state,
@@ -87,8 +97,28 @@ def episode(
         node = node.get_child(action)
         node.expansion(act_fn)
         node.make_root()
+        assert node.state
+        action_log.append(
+            ActionLog(action, node.player_id, node.state.loggable(), node.memo)
+        )
 
     LOGGER.info("Episode done - reward: %s", node.reward)
+
+    return EpisodeReport(final_reward=node.reward, log=action_log)
+
+
+def save_report(episode_result: EpisodeReport, location: str):
+    # Maybe this could be moved out of here?
+    os.makedirs(location, exist_ok=True)
+    filename = f"{datetime.now()}.json"
+    path = os.path.join(location, filename)
+    LOGGER.info("Saving report to %s", path)
+    with open(path, "w") as f:
+        json.dump(
+            {"log": episode_result.log, "reward": episode_result.final_reward},
+            f,
+            cls=ActionLogEncoder,
+        )
 
 
 def train(
@@ -98,7 +128,10 @@ def train(
     episodes: int,
     constant: np.float32 = np.sqrt(2),
     processes: int = 1,
+    report_location: Optional[str] = None,
 ):
     for episode_no in range(episodes):
         LOGGER.info("Episode %d", episode_no)
-        episode(initializer, act_fn, iterations, constant, processes)
+        result = episode(initializer, act_fn, iterations, constant, processes)
+        if report_location:
+            save_report(result, report_location)

@@ -1,4 +1,5 @@
 import argparse
+from datetime import datetime
 import math
 import logging
 import threading
@@ -33,7 +34,7 @@ def speedo(stop_event: threading.Event):
             float(new_iterations_count) - float(iterations_count)
         ) / (t - t_old)
         speeds.append(iterations_per_second)
-        if len(speeds) > 20:
+        if len(speeds) > 5:
             del speeds[0]
         logger.info("Iterations/second: %f", sum(speeds) / len(speeds))
         iterations_count = new_iterations_count
@@ -119,6 +120,10 @@ def main():
         speedo_thread = threading.Thread(target=speedo, args=(stop_event,))
         speedo_thread.start()
 
+    report_folder = f"reports/{args.game}_{datetime.now()}"
+
+    logger.info("Reporting to %s", report_folder)
+
     train(
         GAMES[args.game].initilizer,
         GAMES[args.game].act_fn,
@@ -126,6 +131,7 @@ def main():
         args.episodes,
         args.constant,
         args.jobs,
+        report_folder,
     )
 
 

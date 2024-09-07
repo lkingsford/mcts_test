@@ -10,6 +10,9 @@ LOGGER = logging.getLogger(__name__)
 
 class State(Protocol, Hashable):
     def copy(self): ...
+    def loggable(self) -> dict:
+        # Naive implementation, but something
+        return {k: v for k, v in self.__dict__.items()}
 
 
 Action = Hashable
@@ -24,6 +27,7 @@ class ActResponse(NamedTuple):
     state: State
     next_player: PlayerId
     reward: Optional[Reward]
+    memo: Optional[NamedTuple] = None
 
 
 ActCallable = Callable[[State, Action], ActResponse]
@@ -35,7 +39,8 @@ class Node:
         action: Action = None,
         player_id: int = -1,
         parent: Optional["Node"] = None,
-        state: State = None,
+        state: Optional["State"] = None,
+        memo: Optional[NamedTuple] = None,
         reward: Optional[Reward] = None,
         permitted_actions: Optional[tuple[Action, ...]] = None,
         next_player: Optional[int] = None,
@@ -43,6 +48,7 @@ class Node:
         self.parent = parent
         self.action = action
         self.state = state
+        self.memo = memo
         self.player_id = player_id
         self.reward = None
         self._fully_explored_branch = False
@@ -129,7 +135,7 @@ class Node:
             # This is the expected state, except in root
             assert self.parent
             assert self.parent.state is not None
-            actions, self.state, player_id, self.reward = act_fn(
+            actions, self.state, player_id, self.reward, self.memo = act_fn(
                 self.parent.state.copy(), self.action
             )
 
@@ -175,7 +181,11 @@ class Node:
             and self.next_player is not None
         ):
             result = ActResponse(
-                self.permitted_actions, self.state, self.next_player, self.reward
+                self.permitted_actions,
+                self.state,
+                self.next_player,
+                self.reward,
+                self.memo,
             )
         else:
             if any([self.permitted_actions is not None, self.next_player is not None]):

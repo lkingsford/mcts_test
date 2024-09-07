@@ -23,47 +23,9 @@ import ebr.game
 import ebr.human_play
 import mcts.tree
 import mcts.multi_tree
+from reporter.action_log import ActionLog, ActionLogEncoder, save_report
 
 LOGGER = logging.getLogger(__name__)
-
-
-class ActionLog(NamedTuple):
-    action: int
-    player_id: Optional[int]
-    state: GameState
-    memo: Optional[str]
-
-
-class ActionLogEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, int):
-            return obj
-        if isinstance(obj, tuple):
-            return tuple(self.default(e) for e in obj)
-        if isinstance(obj, np.integer):
-            return int(obj)
-        if isinstance(obj, np.floating):
-            return float(obj)
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        if isinstance(obj, Enum):
-            return str(obj)
-        if isinstance(obj, set):
-            return list(obj)
-        if isinstance(obj, ActionLog):
-            return {
-                "action": super(ActionLogEncoder, self).default(obj.action),
-                "player_id": obj.player_id,
-                "state": obj.state,
-                "memo": super(ActionLogEncoder, self).default(obj.memo),
-            }
-        return super(ActionLogEncoder, self).default(obj)
-
-
-def save_report(folder, actions: list[ActionLog]):
-    os.makedirs(folder, exist_ok=True)
-    with open(os.path.join(folder, f"{datetime.now()}.json"), "w") as f:
-        json.dump(actions, f, cls=ActionLogEncoder)
 
 
 def train(
