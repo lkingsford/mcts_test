@@ -7,6 +7,8 @@ import time
 from typing import Callable, NamedTuple
 
 import c4.m2game
+
+# import nt.m2game
 from mon2y import train, ActCallable, ActResponse, get_total_iterations
 
 LOGGER = logging.getLogger(__name__)
@@ -17,7 +19,10 @@ class GameDetails(NamedTuple):
     act_fn: ActCallable
 
 
-GAMES = {"c4": GameDetails(c4.m2game.initialize_game, c4.m2game.act)}
+GAMES = {
+    "c4": GameDetails(c4.m2game.initialize_game, c4.m2game.act),
+    #   "nt": GameDetails(nt.m2game.initialize_game, nt.m2game.act),
+}
 
 
 def speedo(stop_event: threading.Event):
@@ -126,7 +131,6 @@ def main():
 
     train(
         GAMES[args.game].initilizer,
-        GAMES[args.game].act_fn,
         args.iterations,
         args.episodes,
         args.constant,

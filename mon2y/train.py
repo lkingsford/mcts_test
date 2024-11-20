@@ -24,14 +24,14 @@ def get_total_iterations():
     return total_iterations
 
 
-def iterate(node: Node, act_fn: ActCallable, constant: np.float32 = np.sqrt(2)):
+def iterate(node: Node, constant: np.float32 = np.sqrt(2)):
     selection = node.selection(constant)
     if not selection:
         return
-    selection.expansion(act_fn)
+    selection.expansion()
 
     if selection.reward is None:
-        reward = selection.play_out(act_fn)
+        reward = selection.play_out()
         LOGGER.debug("Playout reward is %s", selection.reward)
         selection.back_propogate(reward)
     else:
@@ -40,17 +40,16 @@ def iterate(node: Node, act_fn: ActCallable, constant: np.float32 = np.sqrt(2)):
 
 
 def _run_iterations(
-    node: Node, act_fn: ActCallable, iterations: int, constant: np.float32 = np.sqrt(2)
+    node: Node, iterations: int, constant: np.float32 = np.sqrt(2)
 ) -> list[tuple[Action, float]]:
     for _ in range(iterations):
-        iterate(node, act_fn)
+        iterate(node)
     picks = node.best_pick_with_values(0)
     return picks
 
 
 def calculate_next_action(
     node: Node,
-    act_fn: ActCallable,
     iterations: int,
     constant: np.float32 = np.sqrt(2),
     processes: int = 1,
@@ -58,7 +57,7 @@ def calculate_next_action(
     with multiprocessing.Pool(processes) as pool:
         all_picks = pool.starmap(
             _run_iterations,
-            [(node, act_fn, iterations, constant)] * processes,
+            [(node, iterations, constant)] * processes,
         )
 
     global total_iterations
@@ -76,7 +75,6 @@ def calculate_next_action(
 
 def episode(
     initializer: Callable[[], ActResponse],
-    act_fn: ActCallable,
     iterations: int,
     constant: np.float32 = np.sqrt(2),
     processes: int = 1,
@@ -86,16 +84,18 @@ def episode(
     initial_state = initializer()
     node = Node(
         state=initial_state.state,
+        act_fn=None,
         permitted_actions=initial_state.permitted_actions,
         next_player=initial_state.next_player,
         reward=initial_state.reward,
+        next_act_fn=initial_state.next_act_fn,
     )
-    node.expansion(act_fn)
+    node.expansion()
     while node.reward is None:
         LOGGER.info("Action %s", node.action)
-        action = calculate_next_action(node, act_fn, iterations, constant, processes)
+        action = calculate_next_action(node, iterations, constant, processes)
         node = node.get_child(action)
-        node.expansion(act_fn)
+        node.expansion()
         node.make_root()
         assert node.state
         action_log.append(
@@ -123,7 +123,6 @@ def save_report(episode_result: EpisodeReport, location: str):
 
 def train(
     initializer: Callable[[], ActResponse],
-    act_fn: ActCallable,
     iterations: int,
     episodes: int,
     constant: np.float32 = np.sqrt(2),
@@ -132,6 +131,6 @@ def train(
 ):
     for episode_no in range(episodes):
         LOGGER.info("Episode %d", episode_no)
-        result = episode(initializer, act_fn, iterations, constant, processes)
+        result = episode(initializer, iterations, constant, processes)
         if report_location:
             save_report(result, report_location)

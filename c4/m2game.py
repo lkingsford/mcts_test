@@ -1,14 +1,15 @@
 import logging
+from typing import overload
 import numpy as np
 
 from mon2y.node import ActResponse
+from mon2y.state import State
 from .game import check_for_win
-
 
 LOGGER = logging.getLogger(__name__)
 
 
-class c4State:
+class c4State(State):
     def __init__(
         self,
         next_player,
@@ -31,11 +32,16 @@ class c4State:
 
 def initialize_game() -> ActResponse:
     return ActResponse(
-        tuple(range(8)), c4State(0, np.zeros((8, 8), dtype=np.uint8)), 0, None
+        tuple(range(8)),
+        c4State(0, np.zeros((8, 8), dtype=np.uint8)),
+        0,
+        None,
+        next_act_fn=act,
     )
 
 
-def act(old_state: c4State, action) -> ActResponse:
+def act(old_state: State, action) -> ActResponse:
+    assert isinstance(old_state, c4State)
     state = old_state.copy()
 
     board = state.board
@@ -61,4 +67,6 @@ def act(old_state: c4State, action) -> ActResponse:
 
     state.next_player = (state.next_player + 1) % 2
 
-    return ActResponse(permitted_actions, state, state.next_player, reward)
+    return ActResponse(
+        permitted_actions, state, state.next_player, reward, next_act_fn=act
+    )

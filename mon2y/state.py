@@ -1,7 +1,7 @@
 from typing import Protocol, Hashable
 
 
-class State(Protocol, Hashable):
+class State(Protocol):
     def copy(self): ...
     def loggable(self) -> dict:
         # Naive implementation, but something

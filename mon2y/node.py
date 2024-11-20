@@ -14,14 +14,13 @@ Action = Hashable
 PlayerId = int
 Reward = np.ndarray
 
-NON_PLAYER_ACTION = -1
-
 
 class ActResponse(NamedTuple):
     permitted_actions: tuple[Action, ...]
     state: State
-    next_player: PlayerId
+    next_player: Optional[PlayerId]
     reward: Optional[Reward]
+    next_act_fn: "ActCallable"
     memo: Optional[NamedTuple] = None
 
 
@@ -32,19 +31,22 @@ class Node:
     def __init__(
         self,
         action: Action = None,
-        player_id: int = -1,
+        act_fn: Optional[ActCallable] = None,
+        player_id: Optional[int] = None,
         parent: Optional["Node"] = None,
         state: Optional["State"] = None,
         memo: Optional[NamedTuple] = None,
         reward: Optional[Reward] = None,
         permitted_actions: Optional[tuple[Action, ...]] = None,
         next_player: Optional[int] = None,
+        next_act_fn: Optional[ActCallable] = None,
     ):
         self.parent = parent
         self.action = action
         self.state = state
         self.memo = memo
         self.player_id = player_id
+        self.act_fn = act_fn
         self.reward = None
         self._fully_explored_branch = False
         # Fully explored could be a property, but this stops it turning into a
@@ -53,6 +55,7 @@ class Node:
         self.permitted_actions = permitted_actions
         self.reward = reward
         self.next_player = next_player
+        self.next_act_fn = next_act_fn
 
         # Spending memory to decrease CPU usage
         # These map actions to the index of children, child visits and child values
@@ -113,30 +116,25 @@ class Node:
 
     def expansion(
         self,
-        act_fn: ActCallable,
     ):
-        if (
-            self.permitted_actions is not None
-            and self.state is not None
-            and self.next_player is not None
-        ):
+        if self.permitted_actions is not None and self.state is not None:
             actions = self.permitted_actions
             player_id = self.next_player
+            act_fn = self.next_act_fn
         else:
             if any([self.permitted_actions is not None, self.next_player is not None]):
-                LOGGER.warning(
-                    "Not state provided, but permitted actions and/or next player are set"
-                )
+                LOGGER.warning("Not state provided, but permitted actions is set")
             # This is the expected state, except in root
             assert self.parent
             assert self.parent.state is not None
-            actions, self.state, player_id, self.reward, self.memo = act_fn(
-                self.parent.state.copy(), self.action
+            actions, self.state, player_id, self.reward, act_fn, self.memo = (
+                self.act_fn(self.parent.state.copy(), self.action)
             )
 
         # These allow us to reroot later without rerunning
         self.permitted_actions = actions
         self.next_player = player_id
+        self.next_act_fn = act_fn
 
         assert actions
 
@@ -163,10 +161,16 @@ class Node:
             self._child_action_idx_map[action] = len(self._children)
             self._child_idx_action_map[len(self._children)] = action
             self._children.append(
-                Node(action=action, player_id=player_id, parent=self, state=None)
+                Node(
+                    action=action,
+                    act_fn=act_fn,
+                    player_id=player_id,
+                    parent=self,
+                    state=None,
+                )
             )
 
-    def play_out(self, act_fn: ActCallable) -> Reward:
+    def play_out(self) -> Reward:
         if self.reward is not None:
             return self.reward
 
@@ -174,12 +178,14 @@ class Node:
             self.permitted_actions is not None
             and self.state is not None
             and self.next_player is not None
+            and self.next_act_fn is not None
         ):
             result = ActResponse(
                 self.permitted_actions,
                 self.state,
                 self.next_player,
                 self.reward,
+                self.next_act_fn,
                 self.memo,
             )
         else:
@@ -189,11 +195,11 @@ class Node:
                 )
             assert self.parent
             assert self.parent.state is not None
-            result = act_fn(self.parent.state, self.action)
+            result = self.act_fn(self.parent.state, self.action)
 
         while result.reward is None:
             action = random.choice(result.permitted_actions)
-            result = act_fn(result.state.copy(), action)
+            result = self.act_fn(result.state.copy(), action)
 
         return result.reward
 
@@ -208,7 +214,7 @@ class Node:
         """
         node = self
         while node.parent:
-            if node.player_id >= 0:
+            if node.player_id is not None:
                 assert node.parent._child_visit_count is not None
                 node.parent._child_visit_count[
                     node.parent._child_action_idx_map[node.action]
